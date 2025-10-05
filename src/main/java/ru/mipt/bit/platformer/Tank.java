@@ -17,14 +17,15 @@ import ru.mipt.bit.platformer.util.TileMovement;
  * Отвечает за движение, отрисовку и обработку столкновений.
  */
 public class Tank {
+  // Константа скорости движения
+  private static final float MOVEMENT_SPEED = 0.4f;
+
   // Графика танка
   private final TextureRegion graphics;
   // Прямоугольник для отрисовки и коллизий
   private final Rectangle bounds;
   // Механика перемещения между тайлами
   private final TileMovement tileMovement;
-  // Скорость движения (время прохождения одного тайла)
-  private final float movementSpeed;
 
   // Текущая позиция на сетке уровня
   private GridPoint2 coordinates;
@@ -38,11 +39,9 @@ public class Tank {
   /**
    * Создает новый танк.
    */
-  public Tank(TextureRegion graphics, GridPoint2 startPosition, float movementSpeed,
-      TileMovement tileMovement) {
+  public Tank(TextureRegion graphics, GridPoint2 startPosition, TileMovement tileMovement) {
     this.graphics = graphics;
     this.bounds = createBoundingRectangle(graphics);
-    this.movementSpeed = movementSpeed;
     this.tileMovement = tileMovement;
     this.coordinates = new GridPoint2(startPosition);
     this.destinationCoordinates = new GridPoint2(startPosition);
@@ -74,7 +73,7 @@ public class Tank {
       tileMovement.moveRectangleBetweenTileCenters(
           bounds, coordinates, destinationCoordinates, movementProgress);
       // Увеличиваем прогресс движения
-      movementProgress = continueProgress(movementProgress, deltaTime, movementSpeed);
+      movementProgress = continueProgress(movementProgress, deltaTime, MOVEMENT_SPEED);
 
       // Если движение завершено, фиксируем новую позицию
       if (isEqual(movementProgress, 1f)) {
@@ -95,6 +94,13 @@ public class Tank {
    */
   public GridPoint2 getCoordinates() {
     return new GridPoint2(coordinates);
+  }
+
+  /**
+   * Возвращает скорость движения танка.
+   */
+  public static float getMovementSpeed() {
+    return MOVEMENT_SPEED;
   }
 
   /**

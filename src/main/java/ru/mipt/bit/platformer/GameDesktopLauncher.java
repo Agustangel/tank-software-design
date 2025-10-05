@@ -40,9 +40,6 @@ public class GameDesktopLauncher implements ApplicationListener {
   // Контроллеры
   private InputController inputController;
 
-  // Константы
-  private static final float MOVEMENT_SPEED = 0.4f;
-
   @Override
   public void create() {
     // Инициализация компонентов
@@ -59,8 +56,7 @@ public class GameDesktopLauncher implements ApplicationListener {
 
     // Создание танка
     Texture blueTankTexture = new Texture("images/tank_blue.png");
-    tank = new Tank(
-        new TextureRegion(blueTankTexture), new GridPoint2(1, 1), MOVEMENT_SPEED, tileMovement);
+    tank = new Tank(new TextureRegion(blueTankTexture), new GridPoint2(1, 1), tileMovement);
 
     // Создание препятствий
     Texture greenTreeTexture = new Texture("images/greenTree.png");
