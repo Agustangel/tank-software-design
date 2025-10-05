@@ -24,36 +24,29 @@ import ru.mipt.bit.platformer.util.TileMovement;
 
 /**
  * Главный класс игры, реализующий игровой цикл.
- * Координирует работу всех компонентов: ввод, обновление состояния, отрисовку.
  */
 public class GameDesktopLauncher implements ApplicationListener {
-  // Основные компоненты графики
-  private Batch batch; // Пакетный отрисовщик спрайтов
-  private TiledMap level; // Загруженная карта уровня
-  private MapRenderer levelRenderer; // Отрисовщик карты
-  private TileMovement tileMovement; // Механика перемещения по тайлам
+  // Основные компоненты
+  private Batch batch;
+  private TiledMap level;
+  private MapRenderer levelRenderer;
+  private TileMovement tileMovement;
+  private GraphicsManager graphicsManager;
 
   // Игровые объекты
-  private Player player; // Управляемый игрок
-  private Texture blueTankTexture; // Текстура танка
+  private Tank tank;
+  private List<Obstacle> obstacles;
 
-  // Препятствия
-  private Texture greenTreeTexture; // Текстура дерева
-  private TextureRegion treeGraphics; // Графическое представление дерева
-  private Rectangle treeBounds; // Прямоугольник для отрисовки дерева
-  private List<GridPoint2> obstacles; // Список позиций всех препятствий
+  // Контроллеры
+  private InputController inputController;
 
-  // Константы
-  private static final float MOVEMENT_SPEED = 0.4f; // Скорость движения игрока
-
-  /**
-   * Инициализация игры: загрузка ресурсов, создание объектов.
-   */
   @Override
   public void create() {
-    // Инициализация графической системы
+    // Инициализация компонентов
     batch = new SpriteBatch();
     obstacles = new ArrayList<>();
+    graphicsManager = new GraphicsManager();
+    inputController = new InputController();
 
     // Загрузка и настройка карты уровня
     level = new TmxMapLoader().load("level.tmx");
@@ -61,97 +54,74 @@ public class GameDesktopLauncher implements ApplicationListener {
     TiledMapTileLayer groundLayer = getSingleLayer(level);
     tileMovement = new TileMovement(groundLayer, Interpolation.smooth);
 
-    // Создание системы ввода
-    InputController inputController = new InputController();
-
-    // Создание игрока
-    blueTankTexture = new Texture("images/tank_blue.png");
-    player = new Player(new TextureRegion(blueTankTexture), new GridPoint2(1, 1), MOVEMENT_SPEED,
-        tileMovement, inputController);
+    // Создание танка
+    Texture blueTankTexture = new Texture("images/tank_blue.png");
+    tank = new Tank(new TextureRegion(blueTankTexture), new GridPoint2(1, 1), tileMovement);
 
     // Создание препятствий
-    greenTreeTexture = new Texture("images/greenTree.png");
-    treeGraphics = new TextureRegion(greenTreeTexture);
-    treeBounds = createBoundingRectangle(treeGraphics);
+    Texture greenTreeTexture = new Texture("images/greenTree.png");
+    TextureRegion treeGraphics = new TextureRegion(greenTreeTexture);
+    Rectangle treeBounds = createBoundingRectangle(treeGraphics);
 
-    // Размещение дерева на карте
     GridPoint2 treePosition = new GridPoint2(1, 3);
-    obstacles.add(treePosition);
+    obstacles.add(new Obstacle(treeGraphics, treePosition, treeBounds));
     moveRectangleAtTileCenter(groundLayer, treeBounds, treePosition);
   }
 
-  /**
-   * Главный игровой цикл. Вызывается каждый кадр.
-   * Порядок выполнения: обработка ввода → обновление состояния → отрисовка.
-   */
   @Override
   public void render() {
-    // Очистка экрана темно-синим цветом
+    // Очистка экрана
     Gdx.gl.glClearColor(0f, 0f, 0.2f, 1f);
     Gdx.gl.glClear(GL_COLOR_BUFFER_BIT);
 
-    // Обновление состояния игрока
-    player.update(Gdx.graphics.getDeltaTime(), obstacles);
+    // Получение направления движения от контроллера
+    Direction movementDirection = inputController.getMovementDirection();
+
+    // Обновление состояния игровых объектов
+    tank.update(Gdx.graphics.getDeltaTime(), obstacles, movementDirection);
+
+    // Проверка действий (например, стрельбы)
+    if (inputController.isActionPressed(InputController.Action.SHOOT)) {
+      // TODO: Реализовать логику стрельбы
+      Gdx.app.log("Input", "Shoot action detected!");
+    }
 
     // Отрисовка игры
-    levelRenderer.render(); // Сначала рисуем карту
-
-    batch.begin(); // Начинаем пакетную отрисовку спрайтов
-    player.render(batch); // Рисуем игрока
-    drawTextureRegionUnscaled(batch, treeGraphics, treeBounds, 0f); // Рисуем дерево
-    batch.end(); // Завершаем отрисовку и отправляем данные на GPU
+    levelRenderer.render();
+    batch.begin();
+    tank.render(batch);
+    for (Obstacle obstacle : obstacles) {
+      graphicsManager.drawObstacle(batch, obstacle);
+    }
+    batch.end();
   }
 
-  /**
-   * Обработка изменения размера окна (не используется).
-   */
   @Override
   public void resize(int width, int height) {
-    // В данной игре не реагируем на изменение размера окна
+    // Не используется
   }
 
-  /**
-   * Вызывается при сворачивании приложения (не используется).
-   */
   @Override
   public void pause() {
-    // Игра не поддерживает паузу
+    // Не используется
   }
 
-  /**
-   * Вызывается при восстановлении приложения (не используется).
-   */
   @Override
   public void resume() {
-    // Игра не поддерживает паузу
+    // Не используется
   }
 
-  /**
-   * Освобождение ресурсов при завершении игры.
-   * Важно для предотвращения утечек памяти.
-   */
   @Override
   public void dispose() {
-    // Освобождаем все загруженные текстуры
-    greenTreeTexture.dispose();
-    blueTankTexture.dispose();
-
-    // Освобождаем карту и графические ресурсы
-    level.dispose();
+    // Освобождение ресурсов
     batch.dispose();
+    level.dispose();
+    // Текстуры освобождаются в отдельных объектах
   }
 
-  /**
-   * Точка входа в приложение.
-   *
-   * @param args аргументы командной строки
-   */
   public static void main(String[] args) {
-    // Настройка окна приложения
     Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
-    config.setWindowedMode(1280, 1024); // Размер окна: 1280x1024 пикселей
-
-    // Запуск игрового приложения
+    config.setWindowedMode(1280, 1024);
     new Lwjgl3Application(new GameDesktopLauncher(), config);
   }
 }
