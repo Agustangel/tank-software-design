@@ -1,48 +1,53 @@
 package ru.mipt.bit.platformer;
 
-import static com.badlogic.gdx.Input.Keys.*;
-
 import com.badlogic.gdx.Gdx;
 
 /**
  * Обработчик пользовательского ввода.
- * Отвечает за преобразование нажатий клавиш в игровые команды.
+ * Поддерживает обработку движения и действий (например, стрельбы).
  */
 public class InputController {
   /**
    * Определяет направление движения на основе нажатых клавиш.
-   * Приоритет направлений: Вверх → Влево → Вниз → Вправо.
-   *
-   * @return направление движения или null, если клавиши не нажаты
    */
-  public Direction getInputDirection() {
-    // Проверка движения вверх
-    if (Gdx.input.isKeyPressed(UP) || Gdx.input.isKeyPressed(W)) {
+  public Direction getMovementDirection() {
+    if (Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.UP)
+        || Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.W)) {
       return Direction.UP;
     }
-    // Проверка движения влево
-    if (Gdx.input.isKeyPressed(LEFT) || Gdx.input.isKeyPressed(A)) {
+    if (Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.LEFT)
+        || Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.A)) {
       return Direction.LEFT;
     }
-    // Проверка движения вниз
-    if (Gdx.input.isKeyPressed(DOWN) || Gdx.input.isKeyPressed(S)) {
+    if (Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.DOWN)
+        || Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.S)) {
       return Direction.DOWN;
     }
-    // Проверка движения вправо
-    if (Gdx.input.isKeyPressed(RIGHT) || Gdx.input.isKeyPressed(D)) {
+    if (Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.RIGHT)
+        || Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.D)) {
       return Direction.RIGHT;
     }
-    // Если ни одна из клавиш не нажата
     return null;
   }
 
   /**
-   * Проверяет, нажата ли конкретная клавиша в данный момент.
-   *
-   * @param key код клавиши (из com.badlogic.gdx.Input.Keys)
-   * @return true если клавиша нажата
+   * Проверяет, нажата ли клавиша действия (например, стрельбы).
    */
-  public boolean isKeyPressed(int key) {
-    return Gdx.input.isKeyPressed(key);
+  public boolean isActionPressed(Action action) {
+    switch (action) {
+      case SHOOT:
+        return Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.SPACE);
+      // Добавьте другие действия здесь
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * Перечисление возможных действий в игре.
+   */
+  public enum Action {
+    SHOOT
+    // Можно добавить: RELOAD, SPECIAL_ABILITY, PAUSE и т.д.
   }
 }

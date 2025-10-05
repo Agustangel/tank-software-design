@@ -1,7 +1,9 @@
 package ru.mipt.bit.platformer;
 
 import static com.badlogic.gdx.math.MathUtils.isEqual;
-import static ru.mipt.bit.platformer.util.GdxGameUtils.*;
+import static ru.mipt.bit.platformer.util.GdxGameUtils.continueProgress;
+import static ru.mipt.bit.platformer.util.GdxGameUtils.createBoundingRectangle;
+import static ru.mipt.bit.platformer.util.GdxGameUtils.drawTextureRegionUnscaled;
 
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
@@ -11,11 +13,11 @@ import java.util.List;
 import ru.mipt.bit.platformer.util.TileMovement;
 
 /**
- * Класс игрока, управляющего танком.
+ * Класс танка - основной игровой объект.
  * Отвечает за движение, отрисовку и обработку столкновений.
  */
-public class Player {
-  // Графика игрока
+public class Tank {
+  // Графика танка
   private final TextureRegion graphics;
   // Прямоугольник для отрисовки и коллизий
   private final Rectangle bounds;
@@ -23,8 +25,6 @@ public class Player {
   private final TileMovement tileMovement;
   // Скорость движения (время прохождения одного тайла)
   private final float movementSpeed;
-  // Контроллер ввода для управления игроком
-  private final InputController inputController;
 
   // Текущая позиция на сетке уровня
   private GridPoint2 coordinates;
@@ -36,45 +36,34 @@ public class Player {
   private float rotation;
 
   /**
-   * Создает нового игрока.
-   *
-   * @param graphics текстура игрока
-   * @param startPosition начальная позиция на сетке
-   * @param movementSpeed скорость движения
-   * @param tileMovement механика перемещения
-   * @param inputController контроллер ввода
+   * Создает новый танк.
    */
-  public Player(TextureRegion graphics, GridPoint2 startPosition, float movementSpeed,
-      TileMovement tileMovement, InputController inputController) {
+  public Tank(TextureRegion graphics, GridPoint2 startPosition, float movementSpeed,
+      TileMovement tileMovement) {
     this.graphics = graphics;
     this.bounds = createBoundingRectangle(graphics);
     this.movementSpeed = movementSpeed;
     this.tileMovement = tileMovement;
-    this.inputController = inputController;
     this.coordinates = new GridPoint2(startPosition);
     this.destinationCoordinates = new GridPoint2(startPosition);
   }
 
   /**
-   * Обновляет состояние игрока каждый кадр.
-   *
-   * @param deltaTime время, прошедшее с последнего кадра
-   * @param obstacles список позиций препятствий для проверки коллизий
+   * Обновляет состояние танка каждый кадр.
    */
-  public void update(float deltaTime, List<GridPoint2> obstacles) {
+  public void update(float deltaTime, List<Obstacle> obstacles, Direction movementDirection) {
     // Обработка ввода возможна только когда предыдущее движение завершено
     if (isEqual(movementProgress, 1f)) {
-      Direction direction = inputController.getInputDirection();
-      if (direction != null) {
+      if (movementDirection != null) {
         // Вычисляем целевую позицию
-        GridPoint2 potentialDestination = direction.applyTo(coordinates);
+        GridPoint2 potentialDestination = movementDirection.applyTo(coordinates);
 
         // Проверяем столкновение с препятствиями
         if (!hasCollision(potentialDestination, obstacles)) {
           // Начинаем новое движение
           destinationCoordinates.set(potentialDestination);
           movementProgress = 0f;
-          rotation = direction.getRotation();
+          rotation = movementDirection.getRotation();
         }
       }
     }
@@ -95,16 +84,14 @@ public class Player {
   }
 
   /**
-   * Отрисовывает игрока на экране.
-   *
-   * @param batch пакетный отрисовщик спрайтов
+   * Отрисовывает танк на экране.
    */
   public void render(Batch batch) {
     drawTextureRegionUnscaled(batch, graphics, bounds, rotation);
   }
 
   /**
-   * Возвращает копию текущей позиции игрока.
+   * Возвращает копию текущей позиции танка.
    */
   public GridPoint2 getCoordinates() {
     return new GridPoint2(coordinates);
@@ -112,12 +99,8 @@ public class Player {
 
   /**
    * Проверяет столкновение с препятствиями.
-   *
-   * @param position проверяемая позиция
-   * @param obstacles список препятствий
-   * @return true если есть столкновение
    */
-  private boolean hasCollision(GridPoint2 position, List<GridPoint2> obstacles) {
-    return obstacles.stream().anyMatch(obstacle -> obstacle.equals(position));
+  private boolean hasCollision(GridPoint2 position, List<Obstacle> obstacles) {
+    return obstacles.stream().anyMatch(obstacle -> obstacle.getPosition().equals(position));
   }
 }
