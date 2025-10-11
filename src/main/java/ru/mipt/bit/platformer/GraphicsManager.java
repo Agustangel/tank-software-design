@@ -7,21 +7,34 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Rectangle;
 
 /**
- * Менеджер графики для отрисовки игровых объектов.
+ * Утилитарный класс для управления графикой игровых объектов.
+ * Содержит методы для отрисовки различных типов объектов.
  */
-public class GraphicsManager {
-  /**
-   * Отрисовывает текстуру в заданных границах с поворотом.
-   */
-  public void drawTexture(Batch batch, TextureRegion texture, Rectangle bounds, float rotation) {
-    // Используем существующий метод из GdxGameUtils
-    drawTextureRegionUnscaled(batch, texture, bounds, rotation);
-  }
+public final class GraphicsManager {
 
-  /**
-   * Отрисовывает препятствие.
-   */
-  public void drawObstacle(Batch batch, Obstacle obstacle) {
-    drawTextureRegionUnscaled(batch, obstacle.getGraphics(), obstacle.getBounds(), 0f);
-  }
+    // Приватный конструктор чтобы предотвратить создание экземпляров
+    private GraphicsManager() {
+        throw new UnsupportedOperationException("Utility class - cannot be instantiated");
+    }
+
+    /**
+     * Отрисовывает текстуру в заданных границах с поворотом.
+     */
+    public static void drawTexture(Batch batch, TextureRegion texture, Rectangle bounds, float rotation) {
+        drawTextureRegionUnscaled(batch, texture, bounds, rotation);
+    }
+
+    /**
+     * Отрисовывает препятствие.
+     */
+    public static void drawObstacle(Batch batch, Obstacle obstacle) {
+        drawTextureRegionUnscaled(batch, obstacle.getGraphics(), obstacle.getBounds(), 0f);
+    }
+
+    /**
+     * Отрисовывает танк с учетом его состояния.
+     */
+    public static void drawTank(Batch batch, Tank tank) {
+        drawTextureRegionUnscaled(batch, tank.getGraphics(), tank.getBounds(), tank.getRotation());
+    }
 }
