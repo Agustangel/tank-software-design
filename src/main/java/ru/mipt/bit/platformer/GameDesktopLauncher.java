@@ -19,6 +19,7 @@ import com.badlogic.gdx.math.GridPoint2;
 import com.badlogic.gdx.math.Interpolation;
 import com.badlogic.gdx.math.Rectangle;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import ru.mipt.bit.platformer.util.TileMovement;
 
@@ -28,6 +29,10 @@ import ru.mipt.bit.platformer.util.TileMovement;
 public class GameDesktopLauncher implements ApplicationListener {
     // Конфигурационные константы
     private static final float TANK_MOVEMENT_SPEED = 0.4f;
+    
+    // Флаги генерации уровня
+    private final boolean useRandomGeneration;
+    private final String levelFilePath;
 
     // Основные компоненты
     private Batch batch;
@@ -43,6 +48,22 @@ public class GameDesktopLauncher implements ApplicationListener {
     // Контроллеры
     private InputController inputController;
 
+    /**
+     * Конструктор по умолчанию - для обратной совместимости
+     */
+    public GameDesktopLauncher() {
+        this.useRandomGeneration = true; // значение по умолчанию
+        this.levelFilePath = "levels/level1.lvl";
+    }
+
+    /**
+     * Конструктор с параметрами для передачи из командной строки
+     */
+    public GameDesktopLauncher(boolean useRandomGeneration, String levelFilePath) {
+        this.useRandomGeneration = useRandomGeneration;
+        this.levelFilePath = levelFilePath;
+    }
+
     @Override
     public void create() {
         // Инициализация компонентов
@@ -57,26 +78,45 @@ public class GameDesktopLauncher implements ApplicationListener {
         TiledMapTileLayer groundLayer = getSingleLayer(level);
         tileMovement = new TileMovement(groundLayer, Interpolation.smooth);
 
+        // Загрузка данных уровня с учетом параметров командной строки
+        LevelData levelData = loadLevelData();
+
         // Создание танка
         Texture blueTankTexture = new Texture("images/tank_blue.png");
-        tank = new Tank(new TextureRegion(blueTankTexture), new GridPoint2(1, 1),
+        tank = new Tank(new TextureRegion(blueTankTexture), levelData.getPlayerStart(),
                        tileMovement, TANK_MOVEMENT_SPEED);
         gameObjects.add(tank);
 
         // Создание препятствий
         Texture greenTreeTexture = new Texture("images/greenTree.png");
         TextureRegion treeGraphics = new TextureRegion(greenTreeTexture);
-        Rectangle treeBounds = createBoundingRectangle(treeGraphics);
 
-        GridPoint2 treePosition = new GridPoint2(1, 3);
-        Obstacle tree = new Obstacle(treeGraphics, treePosition, treeBounds, true);
-        gameObjects.add(tree);
-        collidables.add(tree);
+        for (GridPoint2 obstaclePos : levelData.getObstaclePositions()) {
+            Rectangle treeBounds = createBoundingRectangle(treeGraphics);
+            Obstacle tree = new Obstacle(treeGraphics, obstaclePos, treeBounds, true);
+            gameObjects.add(tree);
+            collidables.add(tree);
+            moveRectangleAtTileCenter(groundLayer, treeBounds, obstaclePos);
+        }
 
-        moveRectangleAtTileCenter(groundLayer, treeBounds, treePosition);
+        // Логируем выбранный режим
+        Gdx.app.log("Level", "Level generation mode: " + 
+            (useRandomGeneration ? "RANDOM" : "FILE: " + levelFilePath));
     }
 
-    @Override
+    /**
+     * Загружает данные уровня выбранным способом
+     */
+    private LevelData loadLevelData() {
+        if (useRandomGeneration) {
+            Gdx.app.log("Level", "Generating random level");
+            return RandomLevelGenerator.generateRandomLevel(10, 8, 0.25f);
+        } else {
+            Gdx.app.log("Level", "Loading level from file: " + levelFilePath);
+            return LevelLoader.loadFromFile(levelFilePath);
+        }
+    }
+
     public void render() {
         // Очистка экрана
         clearScreen();
@@ -153,6 +193,79 @@ public class GameDesktopLauncher implements ApplicationListener {
     public static void main(String[] args) {
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
         config.setWindowedMode(1280, 1024);
-        new Lwjgl3Application(new GameDesktopLauncher(), config);
+        
+        // Парсинг аргументов командной строки
+        CommandLineArgs parsedArgs = parseCommandLineArgs(args);
+        
+        // Выводим информацию о выбранном режиме в консоль
+        System.out.println("Level generation mode: " + 
+            (parsedArgs.useRandomGeneration ? "RANDOM" : "FILE: " + parsedArgs.levelFilePath));
+        
+        // Создание экземпляра игры с параметрами из командной строки
+        GameDesktopLauncher game = new GameDesktopLauncher(
+            parsedArgs.useRandomGeneration, 
+            parsedArgs.levelFilePath
+        );
+        
+        new Lwjgl3Application(game, config);
+    }
+
+    /**
+     * Вспомогательный класс для хранения распарсенных аргументов
+     */
+    private static class CommandLineArgs {
+        boolean useRandomGeneration = true; // значение по умолчанию
+        String levelFilePath = "levels/level1.lvl"; // значение по умолчанию
+    }
+
+    /**
+     * Парсит аргументы командной строки
+     */
+    private static CommandLineArgs parseCommandLineArgs(String[] args) {
+        CommandLineArgs result = new CommandLineArgs();
+        
+        if (args.length == 0) {
+            // Аргументы не переданы - используем значения по умолчанию
+            return result;
+        }
+
+        List<String> argsList = Arrays.asList(args);
+        
+        // Проверяем флаг --random
+        if (argsList.contains("--random")) {
+            result.useRandomGeneration = true;
+            System.out.println("Using random level generation");
+        }
+        
+        // Проверяем флаг --file с путем к файлу
+        int fileIndex = argsList.indexOf("--file");
+        if (fileIndex != -1 && fileIndex + 1 < argsList.size()) {
+            result.useRandomGeneration = false;
+            result.levelFilePath = argsList.get(fileIndex + 1);
+            System.out.println("Loading level from file: " + result.levelFilePath);
+        }
+        
+        // Проверяем флаг --help
+        if (argsList.contains("--help") || argsList.contains("-h")) {
+            printHelp();
+            System.exit(0);
+        }
+
+        return result;
+    }
+
+    /**
+     * Выводит справку по использованию
+     */
+    private static void printHelp() {
+        System.out.println("Tank Game - Command Line Options:");
+        System.out.println("  --random              Generate random level (default)");
+        System.out.println("  --file <path>         Load level from specified file");
+        System.out.println("  --help, -h            Show this help message");
+        System.out.println();
+        System.out.println("Examples:");
+        System.out.println("  ./gradlew run                         # Random level");
+        System.out.println("  ./gradlew run --args=\"--random\"      # Random level");
+        System.out.println("  ./gradlew run --args=\"--file levels/custom.lvl\"  # Load from file");
     }
 }
