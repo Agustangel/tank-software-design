@@ -83,7 +83,7 @@ public class GameDesktopLauncher implements ApplicationListener {
         inputController = new InputController();
 
         // Загрузка данных уровня с учетом параметров командной строки
-        LevelData levelData = loadLevelData();
+        Level levelData = loadLevelData();
         levelWidth = levelData.getWidth();
         levelHeight = levelData.getHeight();
 
@@ -132,20 +132,20 @@ public class GameDesktopLauncher implements ApplicationListener {
     /**
      * Загружает данные уровня выбранным способом
      */
-    private LevelData loadLevelData() {
+    private Level loadLevelData() {
         if (useRandomGeneration) {
             Gdx.app.log("Level", "Generating random level");
             return RandomLevelGenerator.generateRandomLevel(10, 8, 0.25f);
         } else {
             Gdx.app.log("Level", "Loading level from file: " + levelFilePath);
-            return LevelLoader.loadFromFile(levelFilePath);
+            return FileLevelGenerator.loadFromFile(levelFilePath);
         }
     }
 
     /**
      * Создает AI-танки на свободных позициях уровня
      */
-    private void createAITanks(LevelData levelData, TiledMapTileLayer groundLayer) {
+    private void createAITanks(Level levelData, TiledMapTileLayer groundLayer) {
         Texture redTankTexture = new Texture("images/tank_red.png");
         List<GridPoint2> occupiedPositions = new ArrayList<>();
 

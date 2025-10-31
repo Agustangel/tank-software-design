@@ -10,13 +10,13 @@ import java.util.List;
 /**
  * Загрузчик уровней из файлов
  */
-public class LevelLoader {
+public class FileLevelGenerator {
 
   /**
    * Загружает уровень из текстового файла
    * Формат: T - дерево, X - игрок, _ - пустота
    */
-  public static LevelData loadFromFile(String filePath) {
+  public static Level loadFromFile(String filePath) {
     try {
       FileHandle file = Gdx.files.internal(filePath);
 
@@ -29,7 +29,7 @@ public class LevelLoader {
         }
       }
 
-      Gdx.app.log("LevelLoader", "Loading level from: " + file.path());
+      Gdx.app.log("FileLevelGenerator", "Loading level from: " + file.path());
       String content = file.readString();
       return parseLevelContent(content);
     } catch (Exception e) {
@@ -37,7 +37,7 @@ public class LevelLoader {
     }
   }
 
-  private static LevelData parseLevelContent(String content) {
+  private static Level parseLevelContent(String content) {
     String[] lines = content.split("\\r?\\n");
     List<GridPoint2> obstacles = new ArrayList<>();
     GridPoint2 playerStart = null;
@@ -85,10 +85,10 @@ public class LevelLoader {
           "No player start position (X) found in level file");
     }
 
-    Gdx.app.log("LevelLoader", "Loaded level: " + width + "x" + height +
+    Gdx.app.log("FileLevelGenerator", "Loaded level: " + width + "x" + height +
                                    ", player at " + playerStart +
                                    ", obstacles: " + obstacles.size());
 
-    return new LevelData(playerStart, obstacles, width, height);
+    return new Level(playerStart, obstacles, width, height);
   }
 }

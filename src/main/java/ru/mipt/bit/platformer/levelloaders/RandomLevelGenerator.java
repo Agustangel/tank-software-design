@@ -17,7 +17,7 @@ public class RandomLevelGenerator {
      * @param obstacleDensity плотность препятствий (0.0 - 1.0)
      * @return данные уровня
      */
-    public static LevelData generateRandomLevel(int width, int height, float obstacleDensity) {
+    public static Level generateRandomLevel(int width, int height, float obstacleDensity) {
         Random random = new Random();
         List<GridPoint2> obstacles = new ArrayList<>();
         
@@ -50,13 +50,13 @@ public class RandomLevelGenerator {
             );
         } while (obstacles.contains(playerStart));
         
-        return new LevelData(playerStart, obstacles, width, height);
+        return new Level(playerStart, obstacles, width, height);
     }
     
     /**
      * Перегруженный метод с плотностью по умолчанию
      */
-    public static LevelData generateRandomLevel(int width, int height) {
+    public static Level generateRandomLevel(int width, int height) {
         return generateRandomLevel(width, height, 0.3f); // 30% плотность по умолчанию
     }
 }
