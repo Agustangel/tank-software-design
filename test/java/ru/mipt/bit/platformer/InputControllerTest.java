@@ -143,9 +143,6 @@ class InputControllerTest {
 
   @Test
   void testIsActionPressed_UnknownAction() {
-    // Действие - передача неизвестного действия (в текущей реализации)
-    // В будущем можно добавить другие действия
-
     // Проверка - для неизвестного действия должно возвращаться false
     assertFalse(
         inputController.isActionPressed(null), "Для null действия должно возвращаться false");

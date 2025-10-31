@@ -6,104 +6,170 @@ import static org.mockito.Mockito.*;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.GridPoint2;
 import com.badlogic.gdx.math.Rectangle;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import ru.mipt.bit.platformer.util.TileMovement;
 
 /**
  * Тесты для класса Tank
  */
+@ExtendWith(MockitoExtension.class)
 class TankTest {
-  private Tank tank;
-  private TextureRegion mockTexture;
-  private TileMovement mockTileMovement;
-  private GridPoint2 startPosition;
 
-  @BeforeEach
-  void setUp() {
-    // Создание мок-объектов
-    mockTexture = mock(TextureRegion.class);
-    mockTileMovement = mock(TileMovement.class);
-    startPosition = new GridPoint2(1, 1);
+    @Mock
+    private TextureRegion textureRegion;
 
-    // Создание танка для тестирования
-    tank = new Tank(mockTexture, startPosition, mockTileMovement);
-  }
+    @Mock
+    private TileMovement tileMovement;
 
-  @Test
-  void testInitialization() {
-    // Проверка корректной инициализации танка
-    assertEquals(startPosition, tank.getCoordinates(),
-        "Начальная позиция должна соответствовать переданной в конструкторе");
-    assertEquals(Tank.getMovementSpeed(), 0.4f, "Скорость движения должна быть 0.4f");
-  }
+    private Tank tank;
+    private static final float MOVEMENT_SPEED = 0.4f;
+    private static final int LEVEL_WIDTH = 10;
+    private static final int LEVEL_HEIGHT = 8;
 
-  @Test
-  void testUpdate_NoMovementWhenNoDirection() {
-    // Подготовка
-    List<Obstacle> obstacles = new ArrayList<>();
+    @BeforeEach
+    void setUp() {
+        GridPoint2 startPosition = new GridPoint2(2, 2);
+        tank = new Tank(textureRegion, startPosition, tileMovement, MOVEMENT_SPEED, LEVEL_WIDTH, LEVEL_HEIGHT);
+    }
 
-    // Действие
-    tank.update(0.1f, obstacles, null);
+    @Test
+    void testTankCreation() {
+        // Проверка
+        assertEquals(new GridPoint2(2, 2), tank.getPosition());
+        assertEquals(1f, tank.getMovementProgress());
+        assertFalse(tank.isMoving());
+        assertTrue(tank.blocksMovement());
+    }
 
-    // Проверка - танк не должен двигаться при отсутствии направления
-    assertEquals(startPosition, tank.getCoordinates(),
-        "Позиция не должна измениться при отсутствии направления движения");
-  }
+    @Test
+    void testTryMoveSuccess() {
+        // Подготовка
+        List<Collidable> collidables = Arrays.asList();
 
-  @Test
-  void testUpdate_MovementWithoutObstacles() {
-    // Подготовка
-    List<Obstacle> obstacles = new ArrayList<>();
-    Direction movementDirection = Direction.RIGHT;
+        // Действие
+        boolean result = tank.tryMove(Direction.RIGHT, collidables);
 
-    // Действие
-    tank.update(0.1f, obstacles, movementDirection);
+        // Проверка
+        assertTrue(result);
+        assertTrue(tank.isMoving());
+        assertEquals(0f, tank.getMovementProgress());
+    }
 
-    // Проверка - танк должен начать движение в указанном направлении
-    // Метод update вызывает hasCollision, который возвращает false для пустого списка препятствий
-    // Поэтому движение должно начаться
-    assertNotNull(tank.getCoordinates(), "Координаты должны оставаться валидными после обновления");
-  }
+    @Test
+    void testTryMoveCollisionWithObstacle() {
+        // Подготовка
+        Obstacle obstacle = mock(Obstacle.class);
+        when(obstacle.getPosition()).thenReturn(new GridPoint2(3, 2));
+        when(obstacle.blocksMovement()).thenReturn(true);
 
-  @Test
-  void testUpdate_CollisionWithObstacle() {
-    // Подготовка
-    TextureRegion obstacleTexture = mock(TextureRegion.class);
-    Rectangle obstacleBounds = new Rectangle(0, 0, 1, 1);
-    GridPoint2 obstaclePosition = new GridPoint2(2, 1); // Позиция справа от танка
-    Obstacle obstacle = new Obstacle(obstacleTexture, obstaclePosition, obstacleBounds);
+        List<Collidable> collidables = Arrays.asList(obstacle);
 
-    List<Obstacle> obstacles = new ArrayList<>();
-    obstacles.add(obstacle);
+        // Действие
+        boolean result = tank.tryMove(Direction.RIGHT, collidables);
 
-    Direction movementDirection = Direction.RIGHT; // Попытка движения в сторону препятствия
+        // Проверка
+        assertFalse(result);
+        assertFalse(tank.isMoving());
+    }
 
-    // Действие
-    tank.update(0.1f, obstacles, movementDirection);
+    @Test
+    void testTryMoveCollisionWithOtherTank() {
+        // Подготовка
+        Tank otherTank = mock(Tank.class);
+        when(otherTank.getPosition()).thenReturn(new GridPoint2(3, 2));
+        when(otherTank.blocksMovement()).thenReturn(true);
+        when(otherTank.occupiesPosition(any())).thenReturn(true);
 
-    // Проверка - танк не должен двигаться из-за столкновения
-    assertEquals(startPosition, tank.getCoordinates(),
-        "Танк не должен двигаться при столкновении с препятствием");
-  }
+        List<Collidable> collidables = Arrays.asList(otherTank);
 
-  @Test
-  void testGetCoordinates_ReturnsCopy() {
-    // Действие
-    GridPoint2 coordinates = tank.getCoordinates();
+        // Действие
+        boolean result = tank.tryMove(Direction.RIGHT, collidables);
 
-    // Проверка - метод должен возвращать копию, а не оригинал
-    assertNotSame(
-        startPosition, coordinates, "Метод getCoordinates должен возвращать копию позиции");
-    assertEquals(
-        startPosition, coordinates, "Возвращаемая копия должна быть равна оригинальной позиции");
-  }
+        // Проверка
+        assertFalse(result);
+        assertFalse(tank.isMoving());
+    }
 
-  @Test
-  void testGetMovementSpeed() {
-    // Проверка получения скорости движения
-    assertEquals(0.4f, Tank.getMovementSpeed(), "Скорость движения должна быть 0.4f");
-  }
+    @Test
+    void testTryMoveOutOfBounds() {
+        // Подготовка
+        Tank edgeTank = new Tank(textureRegion, new GridPoint2(0, 0), tileMovement,
+                               MOVEMENT_SPEED, LEVEL_WIDTH, LEVEL_HEIGHT);
+        List<Collidable> collidables = Arrays.asList();
+
+        // Действие & Проверка - движение за левую границу
+        assertFalse(edgeTank.tryMove(Direction.LEFT, collidables));
+
+        // Действие & Проверка - движение за нижнюю границу
+        assertFalse(edgeTank.tryMove(Direction.DOWN, collidables));
+    }
+
+    @Test
+    void testTryMoveWhileMoving() {
+        // Подготовка
+        List<Collidable> collidables = Arrays.asList();
+        tank.tryMove(Direction.RIGHT, collidables); // Начинаем движение
+
+        // Действие - попытка движения во время движения
+        boolean result = tank.tryMove(Direction.UP, collidables);
+
+        // Проверка
+        assertFalse(result);
+    }
+
+    @Test
+    void testGetOccupiedCells() {
+        // Подготовка
+        List<Collidable> collidables = Arrays.asList();
+        tank.tryMove(Direction.RIGHT, collidables);
+
+        // Действие
+        List<GridPoint2> occupiedCells = tank.getOccupiedCells();
+
+        // Проверка
+        assertEquals(2, occupiedCells.size());
+        assertTrue(occupiedCells.contains(new GridPoint2(2, 2))); // Начальная позиция
+        assertTrue(occupiedCells.contains(new GridPoint2(3, 2))); // Целевая позиция
+    }
+
+    @Test
+    void testOccupiesPosition() {
+        // Подготовка
+        List<Collidable> collidables = Arrays.asList();
+        tank.tryMove(Direction.RIGHT, collidables);
+
+        // Проверка
+        assertTrue(tank.occupiesPosition(new GridPoint2(2, 2))); // Начальная позиция
+        assertTrue(tank.occupiesPosition(new GridPoint2(3, 2))); // Целевая позиция
+        assertFalse(tank.occupiesPosition(new GridPoint2(4, 2))); // Другая позиция
+    }
+
+    @Test
+    void testSetPosition() {
+        // Действие
+        tank.setPosition(new GridPoint2(5, 5));
+
+        // Проверка
+        assertEquals(new GridPoint2(5, 5), tank.getPosition());
+        assertEquals(1f, tank.getMovementProgress()); // Должен сбросить прогресс движения
+    }
+
+    @Test
+    void testIsPlayer() {
+        // Проверка - танк с скоростью 0.4f должен определяться как игрок
+        assertTrue(tank.isPlayer());
+
+        // Подготовка - танк с другой скоростью
+        Tank aiTank = new Tank(textureRegion, new GridPoint2(0, 0), tileMovement,
+                             0.3f, LEVEL_WIDTH, LEVEL_HEIGHT);
+
+        // Проверка
+        assertFalse(aiTank.isPlayer());
+    }
 }

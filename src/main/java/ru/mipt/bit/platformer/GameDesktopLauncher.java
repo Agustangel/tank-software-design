@@ -32,7 +32,7 @@ public class GameDesktopLauncher implements ApplicationListener {
     private static final float TANK_MOVEMENT_SPEED = 0.4f;
     private static final float AI_MOVEMENT_SPEED = 0.4f;
     private static final int AI_TANK_COUNT = 3;
-    
+
     // Флаги генерации уровня
     private final boolean useRandomGeneration;
     private final String levelFilePath;
@@ -133,13 +133,17 @@ public class GameDesktopLauncher implements ApplicationListener {
      * Загружает данные уровня выбранным способом
      */
     private Level loadLevelData() {
+        LevelGenerator generator;
+
         if (useRandomGeneration) {
-            Gdx.app.log("Level", "Generating random level");
-            return RandomLevelGenerator.generateRandomLevel(10, 8, 0.25f);
+            generator = new RandomLevelGenerator(10, 8, 0.25f);
+            Gdx.app.log("Level", "Using generator: " + generator.getName());
         } else {
-            Gdx.app.log("Level", "Loading level from file: " + levelFilePath);
-            return FileLevelGenerator.loadFromFile(levelFilePath);
+            generator = new FileLevelGenerator(levelFilePath);
+            Gdx.app.log("Level", "Using generator: " + generator.getName());
         }
+
+        return generator.generateLevel();
     }
 
     /**

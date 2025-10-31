@@ -22,6 +22,22 @@ dependencies {
     implementation "com.badlogicgames.gdx:gdx:1.11.0"
     implementation "com.badlogicgames.gdx:gdx-backend-lwjgl3:1.11.0"
     implementation "com.badlogicgames.gdx:gdx-platform:1.11.0:natives-desktop"
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.8.2'
+    testImplementation 'org.mockito:mockito-core:4.6.1'
+    testImplementation 'org.mockito:mockito-junit-jupiter:4.6.1'
+
+    // Для работы с временными файлами в тестах
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.2'
+}
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        events "passed", "skipped", "failed"
+        showStandardStreams = true
+    }
 }
 
 tasks.withType(JavaCompile) {
