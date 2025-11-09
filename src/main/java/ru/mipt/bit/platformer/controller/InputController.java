@@ -4,11 +4,18 @@ import com.badlogic.gdx.Gdx;
 
 /**
  * Обработчик пользовательского ввода.
- * Поддерживает обработку движения и действий (например, стрельбы).
+ * Поддерживает обработку движения, действий и специальных команд.
  */
 public class InputController {
     private static final float INPUT_COOLDOWN = 0.1f;
     private float timeSinceLastInput = 0f;
+
+    // Команда для переключения отображения здоровья
+    private Command healthDisplayCommand;
+
+    public void setHealthDisplayCommand(Command healthDisplayCommand) {
+        this.healthDisplayCommand = healthDisplayCommand;
+    }
 
     /**
      * Определяет направление движения на основе нажатых клавиш.
@@ -44,14 +51,31 @@ public class InputController {
     }
 
     /**
-     * Проверяет, нажата ли клавиша действия (например, стрельбы).
+     * Проверяет, нажата ли клавиша действия.
      */
     public boolean isActionPressed(Action action) {
         switch (action) {
             case SHOOT:
                 return Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.SPACE);
+            case TOGGLE_HEALTH:
+                return Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.L);
             default:
                 return false;
+        }
+    }
+
+    /**
+     * Обрабатывает специальные действия (например, переключение здоровья)
+     */
+    public void handleSpecialActions() {
+        if (isActionPressed(Action.TOGGLE_HEALTH) && healthDisplayCommand != null) {
+            healthDisplayCommand.execute();
+            // Небольшая задержка чтобы избежать многократного срабатывания
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
@@ -59,6 +83,7 @@ public class InputController {
      * Перечисление возможных действий в игре.
      */
     public enum Action {
-        SHOOT
+        SHOOT,
+        TOGGLE_HEALTH
     }
 }

@@ -57,17 +57,15 @@ public class GameDesktopLauncher implements ApplicationListener {
     private int levelWidth;
     private int levelHeight;
 
-    /**
-     * Конструктор по умолчанию - для обратной совместимости
-     */
+    // Новые поля для системы здоровья
+    private List<HealthBarDecorator> healthDecorators;
+    private List<GameObject> renderableObjects;
+
     public GameDesktopLauncher() {
-        this.useRandomGeneration = true; // значение по умолчанию
+        this.useRandomGeneration = true;
         this.levelFilePath = "levels/level1.lvl";
     }
 
-    /**
-     * Конструктор с параметрами для передачи из командной строки
-     */
     public GameDesktopLauncher(boolean useRandomGeneration, String levelFilePath) {
         this.useRandomGeneration = useRandomGeneration;
         this.levelFilePath = levelFilePath;
@@ -81,6 +79,10 @@ public class GameDesktopLauncher implements ApplicationListener {
         collidables = new ArrayList<>();
         aiTanks = new ArrayList<>();
         inputController = new InputController();
+
+        // Инициализация списков для системы здоровья
+        healthDecorators = new ArrayList<>();
+        renderableObjects = new ArrayList<>();
 
         // Загрузка данных уровня с учетом параметров командной строки
         Level levelData = loadLevelData();
@@ -97,7 +99,12 @@ public class GameDesktopLauncher implements ApplicationListener {
         Texture blueTankTexture = new Texture("images/tank_blue.png");
         playerTank = new Tank(new TextureRegion(blueTankTexture), levelData.getPlayerStart(),
                              tileMovement, TANK_MOVEMENT_SPEED, levelWidth, levelHeight);
-        gameObjects.add(playerTank);
+
+        // Создаем декоратор здоровья для игрока
+        HealthBarDecorator playerHealthDecorator = new HealthBarDecorator(playerTank);
+        healthDecorators.add(playerHealthDecorator);
+        renderableObjects.add(playerHealthDecorator);
+
         collidables.add(playerTank);
 
         // Размещаем графику танка игрока
@@ -113,6 +120,7 @@ public class GameDesktopLauncher implements ApplicationListener {
             Rectangle treeBounds = createBoundingRectangle(treeGraphics);
             Obstacle tree = new Obstacle(treeGraphics, obstaclePos, treeBounds, true);
             gameObjects.add(tree);
+            renderableObjects.add(tree);
             collidables.add(tree);
             moveRectangleAtTileCenter(groundLayer, treeBounds, obstaclePos);
         }
@@ -122,6 +130,10 @@ public class GameDesktopLauncher implements ApplicationListener {
 
         // Создание AI-контроллера
         aiController = new AIController(aiTanks, collidables, levelWidth, levelHeight);
+
+        // Настройка команды для переключения здоровья
+        ToggleHealthDisplayCommand healthCommand = new ToggleHealthDisplayCommand(healthDecorators);
+        inputController.setHealthDisplayCommand(healthCommand);
 
         // Логируем выбранный режим
         Gdx.app.log("Level", "Level generation mode: " + 
@@ -164,11 +176,14 @@ public class GameDesktopLauncher implements ApplicationListener {
                 Tank aiTank = new Tank(new TextureRegion(redTankTexture), aiPosition,
                                       tileMovement, AI_MOVEMENT_SPEED, levelWidth, levelHeight);
                 aiTanks.add(aiTank);
-                gameObjects.add(aiTank);
                 collidables.add(aiTank);
                 occupiedPositions.add(aiPosition);
 
-                // Размещаем графику AI-танка
+                // Создаем декоратор здоровья для AI-танка
+                HealthBarDecorator aiHealthDecorator = new HealthBarDecorator(aiTank);
+                healthDecorators.add(aiHealthDecorator);
+                renderableObjects.add(aiHealthDecorator);
+
                 Rectangle aiBounds = createBoundingRectangle(aiTank.getGraphics());
                 moveRectangleAtTileCenter(groundLayer, aiBounds, aiPosition);
                 aiTank.getBounds().set(aiBounds);
@@ -180,9 +195,6 @@ public class GameDesktopLauncher implements ApplicationListener {
         }
     }
 
-    /**
-     * Находит свободную позицию на карте
-     */
     private GridPoint2 findFreePosition(List<GridPoint2> occupiedPositions) {
         Random random = new Random();
         int maxAttempts = levelWidth * levelHeight * 2;
@@ -192,6 +204,7 @@ public class GameDesktopLauncher implements ApplicationListener {
                 random.nextInt(levelWidth),
                 random.nextInt(levelHeight)
             );
+
             if (!occupiedPositions.contains(candidate)) {
                 return candidate;
             }
@@ -220,7 +233,10 @@ public class GameDesktopLauncher implements ApplicationListener {
     }
 
     private void updateGameState(Direction movementDirection) {
-        // Обновление танка игрока с обработкой ввода и столкновений
+        // Обработка специальных действий (переключение здоровья)
+        inputController.handleSpecialActions();
+
+        // Обновление танка игрока
         if (movementDirection != null) {
             playerTank.tryMove(movementDirection, collidables);
         }
@@ -230,11 +246,11 @@ public class GameDesktopLauncher implements ApplicationListener {
 
         // Обновление всех игровых объектов
         float deltaTime = Gdx.graphics.getDeltaTime();
-        for (GameObject gameObject : gameObjects) {
+        for (GameObject gameObject : renderableObjects) {
             gameObject.update(deltaTime);
         }
 
-        // Проверка действий (например, стрельбы)
+        // Проверка действий
         if (inputController.isActionPressed(InputController.Action.SHOOT)) {
             handleShootAction();
         }
@@ -248,9 +264,12 @@ public class GameDesktopLauncher implements ApplicationListener {
     private void renderGame() {
         levelRenderer.render();
         batch.begin();
-        for (GameObject gameObject : gameObjects) {
+
+        // Отрисовываем все объекты через декораторы
+        for (GameObject gameObject : renderableObjects) {
             gameObject.render(batch);
         }
+
         batch.end();
     }
 
@@ -276,71 +295,66 @@ public class GameDesktopLauncher implements ApplicationListener {
         level.dispose();
 
         // Освобождение текстур танков
-        for (GameObject obj : gameObjects) {
-            if (obj instanceof Tank) {
-                ((Tank) obj).getGraphics().getTexture().dispose();
+        for (GameObject obj : renderableObjects) {
+            if (obj instanceof HealthBarDecorator) {
+                HealthBarDecorator decorator = (HealthBarDecorator) obj;
+                decorator.getTank().getGraphics().getTexture().dispose();
             } else if (obj instanceof Obstacle) {
                 ((Obstacle) obj).getGraphics().getTexture().dispose();
             }
+        }
+
+        for (HealthBarDecorator decorator : healthDecorators) {
+            // ShapeRenderer не требует явного освобождения в LibGDX
         }
     }
 
     public static void main(String[] args) {
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
         config.setWindowedMode(1280, 1024);
-        
+
         // Парсинг аргументов командной строки
         CommandLineArgs parsedArgs = parseCommandLineArgs(args);
-        
+
         // Выводим информацию о выбранном режиме в консоль
         System.out.println("Level generation mode: " + 
             (parsedArgs.useRandomGeneration ? "RANDOM" : "FILE: " + parsedArgs.levelFilePath));
-        
+
         // Создание экземпляра игры с параметрами из командной строки
         GameDesktopLauncher game = new GameDesktopLauncher(
             parsedArgs.useRandomGeneration, 
             parsedArgs.levelFilePath
         );
-        
+
         new Lwjgl3Application(game, config);
     }
 
-    /**
-     * Вспомогательный класс для хранения распарсенных аргументов
-     */
     private static class CommandLineArgs {
-        boolean useRandomGeneration = true; // значение по умолчанию
-        String levelFilePath = "levels/level1.lvl"; // значение по умолчанию
+        boolean useRandomGeneration = true;
+        String levelFilePath = "levels/level1.lvl";
     }
 
-    /**
-     * Парсит аргументы командной строки
-     */
     private static CommandLineArgs parseCommandLineArgs(String[] args) {
         CommandLineArgs result = new CommandLineArgs();
-        
+
         if (args.length == 0) {
-            // Аргументы не переданы - используем значения по умолчанию
             return result;
         }
 
         List<String> argsList = Arrays.asList(args);
-        
-        // Проверяем флаг --random
+
         if (argsList.contains("--random")) {
             result.useRandomGeneration = true;
             System.out.println("Using random level generation");
         }
-        
-        // Проверяем флаг --file с путем к файлу
+
         int fileIndex = argsList.indexOf("--file");
         if (fileIndex != -1 && fileIndex + 1 < argsList.size()) {
             result.useRandomGeneration = false;
             result.levelFilePath = argsList.get(fileIndex + 1);
             System.out.println("Loading level from file: " + result.levelFilePath);
         }
-        
-        // Проверяем флаг --help
+
         if (argsList.contains("--help") || argsList.contains("-h")) {
             printHelp();
             System.exit(0);
@@ -349,9 +363,6 @@ public class GameDesktopLauncher implements ApplicationListener {
         return result;
     }
 
-    /**
-     * Выводит справку по использованию
-     */
     private static void printHelp() {
         System.out.println("Tank Game - Command Line Options:");
         System.out.println("  --random              Generate random level (default)");

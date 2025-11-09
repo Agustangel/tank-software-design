@@ -29,6 +29,9 @@ public class Tank implements GameObject, Collidable {
     private float movementProgress = 1f;
     private float rotation;
 
+    private int health;
+    private final int maxHealth = 100;
+
     /**
      * Создает новый танк с конфигурируемой скоростью
      */
@@ -42,6 +45,7 @@ public class Tank implements GameObject, Collidable {
         this.movementSpeed = movementSpeed;
         this.levelWidth = levelWidth;
         this.levelHeight = levelHeight;
+        this.health = maxHealth;
     }
 
     @Override
@@ -61,6 +65,27 @@ public class Tank implements GameObject, Collidable {
     @Override
     public void render(Batch batch) {
         GraphicsManager.drawTank(batch, this);
+    }
+
+    // Геттеры и сеттеры для здоровья
+    public int getHealth() {
+        return health;
+    }
+
+    public int getMaxHealth() {
+        return maxHealth;
+    }
+
+    public void setHealth(int health) {
+        this.health = Math.max(0, Math.min(health, maxHealth));
+    }
+
+    public void takeDamage(int damage) {
+        setHealth(health - damage);
+    }
+
+    public boolean isAlive() {
+        return health > 0;
     }
 
     // Геттеры для GraphicsManager
