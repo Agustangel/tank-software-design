@@ -1,6 +1,7 @@
 package ru.mipt.bit.platformer;
 
 import com.badlogic.gdx.Gdx;
+import ru.mipt.bit.platformer.command.ShootCommand;
 
 /**
  * Обработчик пользовательского ввода.
@@ -41,6 +42,14 @@ public class InputController {
         if (Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.RIGHT)
                 || Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.D)) {
             return resetCooldown(Direction.RIGHT);
+        }
+        return null;
+    }
+
+    public Command getShootCommand(Tank tank) {
+        if (isActionPressed(Action.SHOOT) && timeSinceLastInput >= INPUT_COOLDOWN) {
+            timeSinceLastInput = 0f;
+            return new ShootCommand(tank);
         }
         return null;
     }

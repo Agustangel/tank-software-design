@@ -4,6 +4,7 @@ import static com.badlogic.gdx.math.MathUtils.isEqual;
 import static ru.mipt.bit.platformer.util.GdxGameUtils.continueProgress;
 import static ru.mipt.bit.platformer.util.GdxGameUtils.createBoundingRectangle;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.GridPoint2;
@@ -23,6 +24,8 @@ public class Tank implements GameObject, Collidable {
     private final TileMovement tileMovement;
     private final int levelWidth;
     private final int levelHeight;
+    private final ObservableLevel level;
+    private final TextureRegion bulletGraphics;
 
     private GridPoint2 coordinates;
     private GridPoint2 destinationCoordinates;
@@ -32,11 +35,20 @@ public class Tank implements GameObject, Collidable {
     private int health;
     private final int maxHealth = 100;
 
+    private float timeSinceLastShot = 0f;
+    private static final float SHOOT_COOLDOWN = 0f;
+    private static final int BULLET_DAMAGE = 25;
+
+    private final float tileWidth;
+    private final float tileHeight;
+
     /**
      * Создает новый танк с конфигурируемой скоростью
      */
     public Tank(TextureRegion graphics, GridPoint2 startPosition,
-                TileMovement tileMovement, float movementSpeed, int levelWidth, int levelHeight) {
+                TileMovement tileMovement, float movementSpeed,
+                int levelWidth, int levelHeight, ObservableLevel level,
+                TextureRegion bulletGraphics, float tileWidth, float tileHeight) {
         this.graphics = graphics;
         this.bounds = createBoundingRectangle(graphics);
         this.tileMovement = tileMovement;
@@ -45,11 +57,18 @@ public class Tank implements GameObject, Collidable {
         this.movementSpeed = movementSpeed;
         this.levelWidth = levelWidth;
         this.levelHeight = levelHeight;
+        this.level = level;
         this.health = maxHealth;
+        this.rotation = 0f;
+        this.bulletGraphics = bulletGraphics;
+        this.tileWidth = tileWidth;
+        this.tileHeight = tileHeight;
     }
 
     @Override
     public void update(float deltaTime) {
+        timeSinceLastShot += deltaTime;
+
         // Обновление движения, если оно активно
         if (movementProgress < 1f) {
             tileMovement.moveRectangleBetweenTileCenters(
@@ -213,5 +232,27 @@ public class Tank implements GameObject, Collidable {
      */
     public float getMovementProgress() {
         return movementProgress;
+    }
+
+    /**
+     * Стрельба танка - создает пулю в направлении текущего поворота
+     */
+    public void shoot() {
+        if (timeSinceLastShot < SHOOT_COOLDOWN || !isAlive()) {
+            return;
+        }
+        GridPoint2 bulletPosition = getBulletStartPosition();
+        Bullet bullet = new Bullet(this, Direction.fromRotation(rotation), bulletPosition,
+                                bulletGraphics, 1.0f, BULLET_DAMAGE, levelWidth, levelHeight,
+                                tileWidth, tileHeight);
+
+        level.notifyObjectAdded(bullet);
+        timeSinceLastShot = 0f;
+        Gdx.app.log("Tank", "Tank shot bullet at cell: " + bulletPosition);
+    }
+
+    private GridPoint2 getBulletStartPosition() {
+        // Пуля появляется в следующей клетке по направлению танка
+        return Direction.fromRotation(rotation).applyTo(getPosition());
     }
 }

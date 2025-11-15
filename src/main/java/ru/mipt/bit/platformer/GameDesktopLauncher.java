@@ -22,12 +22,17 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
+import ru.mipt.bit.platformer.command.ShootCommand;
 import ru.mipt.bit.platformer.util.TileMovement;
+
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 
 /**
  * Главный класс игры, реализующий игровой цикл.
  */
-public class GameDesktopLauncher implements ApplicationListener {
+public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
     // Конфигурационные константы
     private static final float TANK_MOVEMENT_SPEED = 0.4f;
     private static final float AI_MOVEMENT_SPEED = 0.4f;
@@ -61,6 +66,18 @@ public class GameDesktopLauncher implements ApplicationListener {
     private List<HealthBarDecorator> healthDecorators;
     private List<GameObject> renderableObjects;
 
+    // Новые поля для системы стрельбы и наблюдателя
+    private ObservableLevel observableLevel;
+    private List<Bullet> bullets;
+
+    // Поле для текстуры пули
+    private Texture bulletTexture;
+    private TextureRegion bulletGraphics;
+
+    // Поля для размеров клетки
+    private float tileWidth;
+    private float tileHeight;
+
     public GameDesktopLauncher() {
         this.useRandomGeneration = true;
         this.levelFilePath = "levels/level1.lvl";
@@ -84,6 +101,11 @@ public class GameDesktopLauncher implements ApplicationListener {
         healthDecorators = new ArrayList<>();
         renderableObjects = new ArrayList<>();
 
+        // Инициализация системы наблюдателя и пуль
+        observableLevel = new ObservableLevel();
+        observableLevel.addObserver(this);
+        bullets = new ArrayList<>();
+
         // Загрузка данных уровня с учетом параметров командной строки
         Level levelData = loadLevelData();
         levelWidth = levelData.getWidth();
@@ -95,10 +117,25 @@ public class GameDesktopLauncher implements ApplicationListener {
         TiledMapTileLayer groundLayer = getSingleLayer(level);
         tileMovement = new TileMovement(groundLayer, Interpolation.smooth);
 
+        // Получаем размеры клетки
+        tileWidth = groundLayer.getTileWidth();
+        tileHeight = groundLayer.getTileHeight();
+        Gdx.app.log("Game", "Tile dimensions: " + tileWidth + "x" + tileHeight);
+
+        // Загружаем текстуру пули
+        try {
+            Gdx.app.log("Game", "Creating fallback texture for testing");
+            createFallbackBulletTexture();
+        } catch (Exception e) {
+            Gdx.app.error("Game", "Failed to load bullet texture: " + e.getMessage());
+            createFallbackBulletTexture();
+        }
+
         // Создание танка игрока
         Texture blueTankTexture = new Texture("images/tank_blue.png");
         playerTank = new Tank(new TextureRegion(blueTankTexture), levelData.getPlayerStart(),
-                             tileMovement, TANK_MOVEMENT_SPEED, levelWidth, levelHeight);
+                            tileMovement, TANK_MOVEMENT_SPEED, levelWidth, levelHeight,
+                            observableLevel, bulletGraphics, tileWidth, tileHeight);
 
         // Создаем декоратор здоровья для игрока
         HealthBarDecorator playerHealthDecorator = new HealthBarDecorator(playerTank);
@@ -141,6 +178,54 @@ public class GameDesktopLauncher implements ApplicationListener {
         Gdx.app.log("Game", "Created " + aiTanks.size() + " AI tanks");
     }
 
+    private boolean isTextureMostlyTransparent(Texture texture) {
+        // Простая проверка - если текстура очень маленькая или имеет необычные размеры
+        return texture.getWidth() < 10 || texture.getHeight() < 10;
+    }
+
+    private void createFallbackBulletTexture() {
+        try {
+            // Создаем текстуру размером 32x32 пикселя
+            int size = 32;
+            Pixmap pixmap = new Pixmap(size, size, Pixmap.Format.RGBA8888);
+
+            // Прозрачный фон
+            pixmap.setColor(0, 0, 0, 0);
+            pixmap.fill();
+
+            // Желтый круг для пули
+            pixmap.setColor(1, 1, 0, 1); // Ярко-желтый
+            pixmap.fillCircle(size/2, size/2, size/3);
+
+            // Красный центр
+            pixmap.setColor(1, 0, 0, 1); // Красный
+            pixmap.fillCircle(size/2, size/2, size/6);
+
+            // Черная обводка для контраста
+            pixmap.setColor(0, 0, 0, 1); // Черный
+            pixmap.drawCircle(size/2, size/2, size/3);
+
+            bulletTexture = new Texture(pixmap);
+            bulletGraphics = new TextureRegion(bulletTexture);
+            pixmap.dispose();
+            Gdx.app.log("Game", "Created proper bullet texture: yellow circle with red center");
+        } catch (Exception e2) {
+            Gdx.app.error("Game", "Failed to create proper bullet texture: " + e2.getMessage());
+            // Используем простую красную текстуру как запасной вариант
+            createSimpleRedTexture();
+        }
+    }
+
+    private void createSimpleRedTexture() {
+        Pixmap pixmap = new Pixmap(16, 16, Pixmap.Format.RGBA8888);
+        pixmap.setColor(1, 0, 0, 1); // Красный
+        pixmap.fill();
+        bulletTexture = new Texture(pixmap);
+        bulletGraphics = new TextureRegion(bulletTexture);
+        pixmap.dispose();
+        Gdx.app.log("Game", "Created simple red bullet texture");
+    }
+
     /**
      * Загружает данные уровня выбранным способом
      */
@@ -174,7 +259,8 @@ public class GameDesktopLauncher implements ApplicationListener {
             GridPoint2 aiPosition = findFreePosition(occupiedPositions);
             if (aiPosition != null) {
                 Tank aiTank = new Tank(new TextureRegion(redTankTexture), aiPosition,
-                                      tileMovement, AI_MOVEMENT_SPEED, levelWidth, levelHeight);
+                                    tileMovement, AI_MOVEMENT_SPEED, levelWidth, levelHeight,
+                                    observableLevel, bulletGraphics, tileWidth, tileHeight);
                 aiTanks.add(aiTank);
                 collidables.add(aiTank);
                 occupiedPositions.add(aiPosition);
@@ -187,6 +273,7 @@ public class GameDesktopLauncher implements ApplicationListener {
                 Rectangle aiBounds = createBoundingRectangle(aiTank.getGraphics());
                 moveRectangleAtTileCenter(groundLayer, aiBounds, aiPosition);
                 aiTank.getBounds().set(aiBounds);
+                Gdx.app.log("TankSetup", "Tank bounds after setup: " + aiTank.getBounds());
 
                 Gdx.app.log("AI", "Created AI tank at position: " + aiPosition);
             } else {
@@ -236,6 +323,12 @@ public class GameDesktopLauncher implements ApplicationListener {
         // Обработка специальных действий (переключение здоровья)
         inputController.handleSpecialActions();
 
+        // Обработка стрельбы игрока
+        if (inputController.isActionPressed(InputController.Action.SHOOT)) {
+            Gdx.app.log("Input", "Shoot button pressed");
+            playerTank.shoot();
+        }
+
         // Обновление танка игрока
         if (movementDirection != null) {
             playerTank.tryMove(movementDirection, collidables);
@@ -250,27 +343,72 @@ public class GameDesktopLauncher implements ApplicationListener {
             gameObject.update(deltaTime);
         }
 
-        // Проверка действий
-        if (inputController.isActionPressed(InputController.Action.SHOOT)) {
-            handleShootAction();
+        // Обновляем пули и проверяем столкновения
+        updateBullets();
+    }
+
+    private void updateBullets() {
+        // Обновляем все пули и проверяем столкновения
+        for (int i = bullets.size() - 1; i >= 0; i--) {
+            Bullet bullet = bullets.get(i);
+            bullet.update(Gdx.graphics.getDeltaTime());
+
+            // Проверяем столкновения пули
+            if (checkBulletCollision(bullet)) {
+                // Удаляем пулю при столкновении
+                observableLevel.notifyObjectRemoved(bullet);
+            }
         }
     }
 
-    private void handleShootAction() {
-        // TODO: Реализовать логику стрельбы
-        Gdx.app.log("Input", "Shoot action detected!");
+    private boolean checkBulletCollision(Bullet bullet) {
+        if (bullet.isDestroyed()) {
+            return true;
+        }
+
+        // Пуля не сталкивается до тех пор, пока не была отрисована хотя бы один раз
+        if (!bullet.hasBeenRendered()) {
+            return false;
+        }
+
+        GridPoint2 bulletPos = bullet.getPosition();
+
+        // Проверяем столкновения со всеми объектами
+        for (Collidable collidable : collidables) {
+            if (collidable == bullet.getOwner()) {
+                continue; // Пуля не сталкивается со своим владельцем
+            }
+            if (collidable.getPosition().equals(bulletPos)) {
+                // Столкновение с танком
+                if (collidable instanceof Tank) {
+                    Tank tank = (Tank) collidable;
+                    tank.takeDamage(bullet.getDamage());
+                    Gdx.app.log("Collision", "Bullet hit tank! Health: " + tank.getHealth());
+                    if (!tank.isAlive()) {
+                        // Танк уничтожен - удаляем его
+                        Gdx.app.log("Collision", "Tank destroyed!");
+                        observableLevel.notifyObjectRemoved(tank);
+                    }
+                }
+                // Пуля уничтожается при любом столкновении
+                bullet.destroy();
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void renderGame() {
         levelRenderer.render();
         batch.begin();
 
-        // Отрисовываем все объекты через декораторы
+        // Отрисовываем все объекты
         for (GameObject gameObject : renderableObjects) {
             gameObject.render(batch);
         }
-
         batch.end();
+        updateBullets();
     }
 
     @Override
@@ -293,6 +431,9 @@ public class GameDesktopLauncher implements ApplicationListener {
         // Освобождение ресурсов
         batch.dispose();
         level.dispose();
+        if (bulletTexture != null) {
+            bulletTexture.dispose();
+        }
 
         // Освобождение текстур танков
         for (GameObject obj : renderableObjects) {
@@ -303,9 +444,47 @@ public class GameDesktopLauncher implements ApplicationListener {
                 ((Obstacle) obj).getGraphics().getTexture().dispose();
             }
         }
+    }
 
-        for (HealthBarDecorator decorator : healthDecorators) {
-            // ShapeRenderer не требует явного освобождения в LibGDX
+    // Реализация методов LevelObserver
+
+    @Override
+    public void objectAdded(GameObject object) {
+        if (object instanceof Bullet) {
+            Bullet bullet = (Bullet) object;
+            bullets.add(bullet);
+            renderableObjects.add(bullet);
+            if (object instanceof Collidable) {
+                collidables.add((Collidable) object);
+            }
+        }
+    }
+
+    @Override
+    public void objectRemoved(GameObject object) {
+        if (object instanceof Bullet) {
+            Bullet bullet = (Bullet) object;
+            bullets.remove(bullet);
+            renderableObjects.remove(bullet);
+            if (object instanceof Collidable) {
+                collidables.remove((Collidable) object);
+            }
+            Gdx.app.log("Observer", "Bullet removed at position: " + bullet.getPosition() +
+                    ". Total objects now: " + renderableObjects.size());
+        } else if (object instanceof Tank) {
+            Tank tank = (Tank) object;
+            // Удаляем танк из всех списков
+            renderableObjects.removeIf(obj -> {
+                if (obj instanceof HealthBarDecorator) {
+                    return ((HealthBarDecorator) obj).getTank() == tank;
+                }
+                return obj == tank;
+            });
+            collidables.remove(tank);
+            aiTanks.remove(tank);
+
+            // Также удаляем соответствующий HealthBarDecorator
+            healthDecorators.removeIf(decorator -> decorator.getTank() == tank);
         }
     }
 

@@ -49,4 +49,19 @@ public enum Direction {
   public int getDy() {
     return dy;
   }
+
+  /**
+   * Определяет направление по углу поворота.
+   *
+   * @param rotation угол поворота в градусах
+   * @return направление, соответствующее углу
+   */
+  public static Direction fromRotation(float rotation) {
+    for (Direction direction : values()) {
+      if (Math.abs(direction.rotation - rotation) < 0.1f) {
+        return direction;
+      }
+    }
+    return RIGHT; // По умолчанию
+  }
 }
