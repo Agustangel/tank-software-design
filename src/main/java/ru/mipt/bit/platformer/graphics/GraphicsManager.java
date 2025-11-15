@@ -2,6 +2,7 @@ package ru.mipt.bit.platformer;
 
 import static ru.mipt.bit.platformer.util.GdxGameUtils.drawTextureRegionUnscaled;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Rectangle;
@@ -36,5 +37,12 @@ public final class GraphicsManager {
      */
     public static void drawTank(Batch batch, Tank tank) {
         drawTextureRegionUnscaled(batch, tank.getGraphics(), tank.getBounds(), tank.getRotation());
+    }
+
+    /**
+     * Отрисовывает пулю с учетом ее направления.
+     */
+    public static void drawBullet(Batch batch, Bullet bullet) {
+        drawTextureRegionUnscaled(batch, bullet.getGraphics(), bullet.getBounds(), bullet.getDirection().getRotation());
     }
 }
