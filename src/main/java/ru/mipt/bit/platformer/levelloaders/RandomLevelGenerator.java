@@ -1,6 +1,8 @@
-package ru.mipt.bit.platformer;
+package ru.mipt.bit.platformer.levelloaders;
 
 import com.badlogic.gdx.math.GridPoint2;
+import ru.mipt.bit.platformer.Level;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;

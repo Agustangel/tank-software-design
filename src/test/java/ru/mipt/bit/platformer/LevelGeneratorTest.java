@@ -2,6 +2,9 @@ package ru.mipt.bit.platformer;
 
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
+import ru.mipt.bit.platformer.levelloaders.LevelGenerator;
+import ru.mipt.bit.platformer.levelloaders.RandomLevelGenerator;
+import ru.mipt.bit.platformer.levelloaders.FileLevelGenerator;
 
 /**
  * Тесты для интерфейса генератора уровней

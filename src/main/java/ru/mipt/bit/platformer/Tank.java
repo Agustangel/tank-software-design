@@ -16,6 +16,7 @@ import ru.mipt.bit.platformer.util.TileMovement;
 /**
  * Класс танка - основной игровой объект.
  * Отвечает за движение, отрисовку и обработку столкновений.
+ * Теперь поддерживает dependency injection через конструктор.
  */
 public class Tank implements GameObject, Collidable {
     private final float movementSpeed;
@@ -44,6 +45,7 @@ public class Tank implements GameObject, Collidable {
 
     /**
      * Создает новый танк с конфигурируемой скоростью
+     * Конструктор адаптирован для Spring DI - все зависимости передаются через параметры
      */
     public Tank(TextureRegion graphics, GridPoint2 startPosition,
                 TileMovement tileMovement, float movementSpeed,
