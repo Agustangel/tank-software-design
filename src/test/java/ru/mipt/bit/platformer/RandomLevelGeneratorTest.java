@@ -3,6 +3,7 @@ package ru.mipt.bit.platformer;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
+import ru.mipt.bit.platformer.levelloaders.RandomLevelGenerator;
 
 class RandomLevelGeneratorTest {
 

@@ -1,7 +1,7 @@
-package ru.mipt.bit.platformer;
+package ru.mipt.bit.platformer.controller;
 
 import com.badlogic.gdx.Gdx;
-import ru.mipt.bit.platformer.command.ShootCommand;
+import ru.mipt.bit.platformer.*;
 
 /**
  * Обработчик пользовательского ввода.
@@ -12,16 +12,16 @@ public class InputController {
     private float timeSinceLastInput = 0f;
 
     // Команда для переключения отображения здоровья
-    private Command healthDisplayCommand;
+    private ru.mipt.bit.platformer.Command healthDisplayCommand;
 
-    public void setHealthDisplayCommand(Command healthDisplayCommand) {
+    public void setHealthDisplayCommand(ru.mipt.bit.platformer.Command healthDisplayCommand) {
         this.healthDisplayCommand = healthDisplayCommand;
     }
 
     /**
      * Определяет направление движения на основе нажатых клавиш.
      */
-    public Direction getMovementDirection() {
+    public ru.mipt.bit.platformer.Direction getMovementDirection() {
         timeSinceLastInput += Gdx.graphics.getDeltaTime();
         if (timeSinceLastInput < INPUT_COOLDOWN) {
             return null;
@@ -29,32 +29,32 @@ public class InputController {
 
         if (Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.UP)
                 || Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.W)) {
-            return resetCooldown(Direction.UP);
+            return resetCooldown(ru.mipt.bit.platformer.Direction.UP);
         }
         if (Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.LEFT)
                 || Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.A)) {
-            return resetCooldown(Direction.LEFT);
+            return resetCooldown(ru.mipt.bit.platformer.Direction.LEFT);
         }
         if (Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.DOWN)
                 || Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.S)) {
-            return resetCooldown(Direction.DOWN);
+            return resetCooldown(ru.mipt.bit.platformer.Direction.DOWN);
         }
         if (Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.RIGHT)
                 || Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.D)) {
-            return resetCooldown(Direction.RIGHT);
+            return resetCooldown(ru.mipt.bit.platformer.Direction.RIGHT);
         }
         return null;
     }
 
-    public Command getShootCommand(Tank tank) {
+    public ru.mipt.bit.platformer.Command getShootCommand(ru.mipt.bit.platformer.Tank tank) {
         if (isActionPressed(Action.SHOOT) && timeSinceLastInput >= INPUT_COOLDOWN) {
             timeSinceLastInput = 0f;
-            return new ShootCommand(tank);
+            return new ru.mipt.bit.platformer.command.ShootCommand(tank);
         }
         return null;
     }
 
-    private Direction resetCooldown(Direction direction) {
+    private ru.mipt.bit.platformer.Direction resetCooldown(ru.mipt.bit.platformer.Direction direction) {
         timeSinceLastInput = 0f;
         return direction;
     }

@@ -29,8 +29,18 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 
+// Spring imports
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import ru.mipt.bit.platformer.config.SpringConfig;
+import ru.mipt.bit.platformer.controller.AIController;
+import ru.mipt.bit.platformer.controller.InputController;
+import ru.mipt.bit.platformer.levelloaders.LevelGenerator;
+import ru.mipt.bit.platformer.levelloaders.RandomLevelGenerator;
+import ru.mipt.bit.platformer.levelloaders.FileLevelGenerator;
+
 /**
  * Главный класс игры, реализующий игровой цикл.
+ * Spring используется только для неграфических компонентов
  */
 public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
     // Конфигурационные константы
@@ -42,76 +52,79 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
     private final boolean useRandomGeneration;
     private final String levelFilePath;
 
-    // Основные компоненты
+    // Spring-инжектируемые зависимости (только неграфические)
+    private Level levelData;
+    private LevelGenerator levelGenerator;
+    private InputController inputController;
+    private AIController aiController;
+    private ObservableLevel observableLevel;
+    
+    // Графические объекты (создаются вручную после инициализации LibGDX)
     private Batch batch;
     private TiledMap level;
     private MapRenderer levelRenderer;
     private TileMovement tileMovement;
-
-    // Игровые объекты
     private Tank playerTank;
+    
+    // Остальные поля остаются без изменений
     private List<Tank> aiTanks;
     private List<GameObject> gameObjects;
     private List<Collidable> collidables;
-
-    // Контроллеры
-    private InputController inputController;
-    private AIController aiController;
-
-    // Данные уровня
+    private List<HealthBarDecorator> healthDecorators;
+    private List<GameObject> renderableObjects;
+    private List<Bullet> bullets;
+    private Texture bulletTexture;
+    private TextureRegion bulletGraphics;
+    private float tileWidth;
+    private float tileHeight;
+    
+    // Поля для размеров уровня
     private int levelWidth;
     private int levelHeight;
 
-    // Новые поля для системы здоровья
-    private List<HealthBarDecorator> healthDecorators;
-    private List<GameObject> renderableObjects;
-
-    // Новые поля для системы стрельбы и наблюдателя
-    private ObservableLevel observableLevel;
-    private List<Bullet> bullets;
-
-    // Поле для текстуры пули
-    private Texture bulletTexture;
-    private TextureRegion bulletGraphics;
-
-    // Поля для размеров клетки
-    private float tileWidth;
-    private float tileHeight;
+    // Spring контекст
+    private AnnotationConfigApplicationContext context;
 
     public GameDesktopLauncher() {
         this.useRandomGeneration = true;
         this.levelFilePath = "levels/level1.lvl";
+        
+        // Инициализация списков
+        this.aiTanks = new ArrayList<>();
+        this.gameObjects = new ArrayList<>();
+        this.collidables = new ArrayList<>();
+        this.healthDecorators = new ArrayList<>();
+        this.renderableObjects = new ArrayList<>();
+        this.bullets = new ArrayList<>();
     }
 
     public GameDesktopLauncher(boolean useRandomGeneration, String levelFilePath) {
         this.useRandomGeneration = useRandomGeneration;
         this.levelFilePath = levelFilePath;
+        
+        // Инициализация списков
+        this.aiTanks = new ArrayList<>();
+        this.gameObjects = new ArrayList<>();
+        this.collidables = new ArrayList<>();
+        this.healthDecorators = new ArrayList<>();
+        this.renderableObjects = new ArrayList<>();
+        this.bullets = new ArrayList<>();
     }
 
     @Override
     public void create() {
-        // Инициализация компонентов
+        // Создаем Spring контекст для неграфических компонентов
+        context = new AnnotationConfigApplicationContext(SpringConfig.class);
+
+        // Получаем Spring бины
+        this.levelData = context.getBean(Level.class);
+        this.levelGenerator = context.getBean(LevelGenerator.class);
+        this.inputController = context.getBean(InputController.class);
+        this.aiController = context.getBean(AIController.class);
+        this.observableLevel = context.getBean(ObservableLevel.class);
+
+        // Создаем графические объекты после инициализации LibGDX
         batch = new SpriteBatch();
-        gameObjects = new ArrayList<>();
-        collidables = new ArrayList<>();
-        aiTanks = new ArrayList<>();
-        inputController = new InputController();
-
-        // Инициализация списков для системы здоровья
-        healthDecorators = new ArrayList<>();
-        renderableObjects = new ArrayList<>();
-
-        // Инициализация системы наблюдателя и пуль
-        observableLevel = new ObservableLevel();
-        observableLevel.addObserver(this);
-        bullets = new ArrayList<>();
-
-        // Загрузка данных уровня с учетом параметров командной строки
-        Level levelData = loadLevelData();
-        levelWidth = levelData.getWidth();
-        levelHeight = levelData.getHeight();
-
-        // Загрузка и настройка карты уровня
         level = new TmxMapLoader().load("level.tmx");
         levelRenderer = createSingleLayerMapRenderer(level, batch);
         TiledMapTileLayer groundLayer = getSingleLayer(level);
@@ -122,6 +135,13 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
         tileHeight = groundLayer.getTileHeight();
         Gdx.app.log("Game", "Tile dimensions: " + tileWidth + "x" + tileHeight);
 
+        // Устанавливаем размеры уровня
+        this.levelWidth = levelData.getWidth();
+        this.levelHeight = levelData.getHeight();
+
+        // Настройка наблюдателя
+        observableLevel.addObserver(this);
+
         // Загружаем текстуру пули
         try {
             Gdx.app.log("Game", "Creating fallback texture for testing");
@@ -131,17 +151,18 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
             createFallbackBulletTexture();
         }
 
-        // Создание танка игрока
+        // Создаем танк игрока вручную
         Texture blueTankTexture = new Texture("images/tank_blue.png");
-        playerTank = new Tank(new TextureRegion(blueTankTexture), levelData.getPlayerStart(),
-                            tileMovement, TANK_MOVEMENT_SPEED, levelWidth, levelHeight,
+        TextureRegion tankGraphics = new TextureRegion(blueTankTexture);
+        
+        playerTank = new Tank(tankGraphics, levelData.getPlayerStart(), tileMovement, 
+                            TANK_MOVEMENT_SPEED, levelWidth, levelHeight, 
                             observableLevel, bulletGraphics, tileWidth, tileHeight);
 
         // Создаем декоратор здоровья для игрока
         HealthBarDecorator playerHealthDecorator = new HealthBarDecorator(playerTank);
         healthDecorators.add(playerHealthDecorator);
         renderableObjects.add(playerHealthDecorator);
-
         collidables.add(playerTank);
 
         // Размещаем графику танка игрока
@@ -150,6 +171,26 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
         playerTank.getBounds().set(playerBounds);
 
         // Создание препятствий
+        createObstacles(groundLayer);
+        
+        // Создание AI-танков
+        createAITanks(levelData, groundLayer);
+
+        // Настройка команды для переключения здоровья
+        ToggleHealthDisplayCommand healthCommand = new ToggleHealthDisplayCommand(healthDecorators);
+        inputController.setHealthDisplayCommand(healthCommand);
+
+        // Логируем выбранный режим
+        Gdx.app.log("Level", "Level generation mode: " + 
+            (useRandomGeneration ? "RANDOM" : "FILE: " + levelFilePath));
+        Gdx.app.log("Game", "Created " + aiTanks.size() + " AI tanks");
+        Gdx.app.log("Spring", "Game initialized with Spring IoC container (non-graphics only)");
+    }
+
+    /**
+     * Создает препятствия на уровне
+     */
+    private void createObstacles(TiledMapTileLayer groundLayer) {
         Texture greenTreeTexture = new Texture("images/greenTree.png");
         TextureRegion treeGraphics = new TextureRegion(greenTreeTexture);
 
@@ -161,21 +202,6 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
             collidables.add(tree);
             moveRectangleAtTileCenter(groundLayer, treeBounds, obstaclePos);
         }
-
-        // Создание AI-танков
-        createAITanks(levelData, groundLayer);
-
-        // Создание AI-контроллера
-        aiController = new AIController(aiTanks, collidables, levelWidth, levelHeight);
-
-        // Настройка команды для переключения здоровья
-        ToggleHealthDisplayCommand healthCommand = new ToggleHealthDisplayCommand(healthDecorators);
-        inputController.setHealthDisplayCommand(healthCommand);
-
-        // Логируем выбранный режим
-        Gdx.app.log("Level", "Level generation mode: " + 
-            (useRandomGeneration ? "RANDOM" : "FILE: " + levelFilePath));
-        Gdx.app.log("Game", "Created " + aiTanks.size() + " AI tanks");
     }
 
     private boolean isTextureMostlyTransparent(Texture texture) {
@@ -433,6 +459,11 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
         level.dispose();
         if (bulletTexture != null) {
             bulletTexture.dispose();
+        }
+
+        // Закрываем Spring контекст
+        if (context != null) {
+            context.close();
         }
 
         // Освобождение текстур танков

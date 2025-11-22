@@ -1,4 +1,6 @@
-package ru.mipt.bit.platformer;
+package ru.mipt.bit.platformer.levelloaders;
+
+import ru.mipt.bit.platformer.Level;
 
 /**
  * Интерфейс для генераторов уровней.
