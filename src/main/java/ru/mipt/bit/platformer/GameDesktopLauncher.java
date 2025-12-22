@@ -29,7 +29,6 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 
-// Spring imports
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import ru.mipt.bit.platformer.config.SpringConfig;
 import ru.mipt.bit.platformer.controller.AIController;
@@ -42,31 +41,54 @@ import ru.mipt.bit.platformer.levelloaders.FileLevelGenerator;
  * Главный класс игры, реализующий игровой цикл.
  * Spring используется только для неграфических компонентов
  */
+
+// 1. Нарушение SRP
+// Класс реализует ApplicationListener И LevelObserver одновременно
+// Класс отвечает за управление игровым циклом И за обработку событий уровня.
+// Это две разные ответственности.
+// РЕШЕНИЕ: Создать отдельный класс GameLevelObserver, который будет имплементировать интерфейс LevelObserver.
+// Его как поле будет хранить GameDesktopLauncher и при необходимости дергать его методы.
 public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
-    // Конфигурационные константы
+    // 2. Нарушение OCP
+    // Конфигурационные константы жестко закодированы в коде
+    // Код закрыт для расширения - нельзя менять значения без перекомпиляции.
+    // Невозможны разные конфигурации для разных сценариев или уровней.
+    // РЕШЕНИЕ: Перенести в конфигурационный файл (resources/application.yaml) 
+    // и подтягивать через spring (@Value)
     private static final float TANK_MOVEMENT_SPEED = 0.4f;
     private static final float AI_MOVEMENT_SPEED = 0.4f;
     private static final int AI_TANK_COUNT = 3;
 
-    // Флаги генерации уровня
     private final boolean useRandomGeneration;
     private final String levelFilePath;
 
-    // Spring-инжектируемые зависимости (только неграфические)
     private Level levelData;
     private LevelGenerator levelGenerator;
     private InputController inputController;
     private AIController aiController;
     private ObservableLevel observableLevel;
     
-    // Графические объекты (создаются вручную после инициализации LibGDX)
     private Batch batch;
     private TiledMap level;
     private MapRenderer levelRenderer;
     private TileMovement tileMovement;
     private Tank playerTank;
     
-    // Остальные поля остаются без изменений
+    // 3. Нарушение SRP
+    // Инициализация и управление множеством коллекций в одном классе
+    // GameDesktopLauncher отвечает за слишком много:
+    // - управление танками (aiTanks)
+    // - управление всеми игровыми объектами (gameObjects)
+    // - управление коллизиями (collidables)
+    // - управление декораторами здоровья (healthDecorators)
+    // - управление отрисовкой (renderableObjects)
+    // - управление пулями (bullets)
+    // Это нарушает принцип единственной ответственности.
+    // РЕШЕНИЕ: За управлением этими объектами должен отвечать другой класс - GameWorld (например).
+    // Это должен быть класс отличный от GameDesktopLauncher, который:
+    // - хранит все объекты
+    // - управляет добавлением/удалением объектов
+    // - обеспечивает взаимодействие объектов
     private List<Tank> aiTanks;
     private List<GameObject> gameObjects;
     private List<Collidable> collidables;
@@ -78,18 +100,15 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
     private float tileWidth;
     private float tileHeight;
     
-    // Поля для размеров уровня
     private int levelWidth;
     private int levelHeight;
 
-    // Spring контекст
     private AnnotationConfigApplicationContext context;
 
     public GameDesktopLauncher() {
         this.useRandomGeneration = true;
         this.levelFilePath = "levels/level1.lvl";
         
-        // Инициализация списков
         this.aiTanks = new ArrayList<>();
         this.gameObjects = new ArrayList<>();
         this.collidables = new ArrayList<>();
@@ -102,7 +121,6 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
         this.useRandomGeneration = useRandomGeneration;
         this.levelFilePath = levelFilePath;
         
-        // Инициализация списков
         this.aiTanks = new ArrayList<>();
         this.gameObjects = new ArrayList<>();
         this.collidables = new ArrayList<>();
@@ -113,36 +131,38 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
 
     @Override
     public void create() {
-        // Создаем Spring контекст для неграфических компонентов
+        // 4. Нарушение DIP
+        // Получаем Spring бины через Service Locator pattern
+        // Класс явно создает зависимость от Spring контекста.
+        // Вместо инжекции зависимостей в конструктор, мы "достаем" бины из контекста.
+        // Это нарушает DIP - класс зависит от конкретной реализации (Spring контекст),
+        // а не от абстракции.
+        // РЕШЕНИЕ: Эти бины нужно создавать в файле Config.java через @Bean методы, 
+        // после чего инжектить в конструкторы классов через Constructor Injection.
         context = new AnnotationConfigApplicationContext(SpringConfig.class);
 
-        // Получаем Spring бины
         this.levelData = context.getBean(Level.class);
         this.levelGenerator = context.getBean(LevelGenerator.class);
         this.inputController = context.getBean(InputController.class);
         this.aiController = context.getBean(AIController.class);
         this.observableLevel = context.getBean(ObservableLevel.class);
 
-        // Создаем графические объекты после инициализации LibGDX
         batch = new SpriteBatch();
         level = new TmxMapLoader().load("level.tmx");
         levelRenderer = createSingleLayerMapRenderer(level, batch);
         TiledMapTileLayer groundLayer = getSingleLayer(level);
         tileMovement = new TileMovement(groundLayer, Interpolation.smooth);
 
-        // Получаем размеры клетки
         tileWidth = groundLayer.getTileWidth();
         tileHeight = groundLayer.getTileHeight();
         Gdx.app.log("Game", "Tile dimensions: " + tileWidth + "x" + tileHeight);
 
-        // Устанавливаем размеры уровня
         this.levelWidth = levelData.getWidth();
         this.levelHeight = levelData.getHeight();
 
-        // Настройка наблюдателя
         observableLevel.addObserver(this);
 
-        // Загружаем текстуру пули
+
         try {
             Gdx.app.log("Game", "Creating fallback texture for testing");
             createFallbackBulletTexture();
@@ -151,7 +171,6 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
             createFallbackBulletTexture();
         }
 
-        // Создаем танк игрока вручную
         Texture blueTankTexture = new Texture("images/tank_blue.png");
         TextureRegion tankGraphics = new TextureRegion(blueTankTexture);
         
@@ -159,37 +178,29 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
                             TANK_MOVEMENT_SPEED, levelWidth, levelHeight, 
                             observableLevel, bulletGraphics, tileWidth, tileHeight);
 
-        // Создаем декоратор здоровья для игрока
         HealthBarDecorator playerHealthDecorator = new HealthBarDecorator(playerTank);
         healthDecorators.add(playerHealthDecorator);
         renderableObjects.add(playerHealthDecorator);
         collidables.add(playerTank);
 
-        // Размещаем графику танка игрока
         Rectangle playerBounds = createBoundingRectangle(playerTank.getGraphics());
         moveRectangleAtTileCenter(groundLayer, playerBounds, levelData.getPlayerStart());
         playerTank.getBounds().set(playerBounds);
 
-        // Создание препятствий
         createObstacles(groundLayer);
         
-        // Создание AI-танков
         createAITanks(levelData, groundLayer);
 
-        // Настройка команды для переключения здоровья
         ToggleHealthDisplayCommand healthCommand = new ToggleHealthDisplayCommand(healthDecorators);
         inputController.setHealthDisplayCommand(healthCommand);
 
-        // Логируем выбранный режим
         Gdx.app.log("Level", "Level generation mode: " + 
             (useRandomGeneration ? "RANDOM" : "FILE: " + levelFilePath));
         Gdx.app.log("Game", "Created " + aiTanks.size() + " AI tanks");
         Gdx.app.log("Spring", "Game initialized with Spring IoC container (non-graphics only)");
     }
 
-    /**
-     * Создает препятствия на уровне
-     */
+
     private void createObstacles(TiledMapTileLayer groundLayer) {
         Texture greenTreeTexture = new Texture("images/greenTree.png");
         TextureRegion treeGraphics = new TextureRegion(greenTreeTexture);
@@ -205,29 +216,28 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
     }
 
     private boolean isTextureMostlyTransparent(Texture texture) {
-        // Простая проверка - если текстура очень маленькая или имеет необычные размеры
         return texture.getWidth() < 10 || texture.getHeight() < 10;
     }
 
+    // 5. Нарушение SRP
+    // createFallbackBulletTexture() находится в основном классе
+    // GameDesktopLauncher не должен отвечать за создание графических ресурсов.
+    // Это отделение интереса - создание текстур это отдельная задача от управления игровым циклом.
+    // РЕШЕНИЕ: За это должен отвечать отдельный утилитарный класс (например BulletTextureFactory).
     private void createFallbackBulletTexture() {
         try {
-            // Создаем текстуру размером 32x32 пикселя
             int size = 32;
             Pixmap pixmap = new Pixmap(size, size, Pixmap.Format.RGBA8888);
 
-            // Прозрачный фон
             pixmap.setColor(0, 0, 0, 0);
             pixmap.fill();
 
-            // Желтый круг для пули
             pixmap.setColor(1, 1, 0, 1); // Ярко-желтый
             pixmap.fillCircle(size/2, size/2, size/3);
 
-            // Красный центр
             pixmap.setColor(1, 0, 0, 1); // Красный
             pixmap.fillCircle(size/2, size/2, size/6);
 
-            // Черная обводка для контраста
             pixmap.setColor(0, 0, 0, 1); // Черный
             pixmap.drawCircle(size/2, size/2, size/3);
 
@@ -237,11 +247,13 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
             Gdx.app.log("Game", "Created proper bullet texture: yellow circle with red center");
         } catch (Exception e2) {
             Gdx.app.error("Game", "Failed to create proper bullet texture: " + e2.getMessage());
-            // Используем простую красную текстуру как запасной вариант
             createSimpleRedTexture();
         }
     }
 
+    // Нарушение SRP
+    // Метод создания fallback текстуры также находится в основном классе (часть проблемы)
+    // РЕШЕНИЕ: За это должен отвечать отдельный утилитарный класс (например BulletTextureFactory).
     private void createSimpleRedTexture() {
         Pixmap pixmap = new Pixmap(16, 16, Pixmap.Format.RGBA8888);
         pixmap.setColor(1, 0, 0, 1); // Красный
@@ -252,9 +264,6 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
         Gdx.app.log("Game", "Created simple red bullet texture");
     }
 
-    /**
-     * Загружает данные уровня выбранным способом
-     */
     private Level loadLevelData() {
         LevelGenerator generator;
 
@@ -269,18 +278,22 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
         return generator.generateLevel();
     }
 
-    /**
-     * Создает AI-танки на свободных позициях уровня
-     */
+    // 7. Нарушение SRP
+    // Логика заполнения уровня находится в основном классе
+    // GameDesktopLauncher отвечает за создание врагов и поиск свободных позиций.
+    // Это отдельная ответственность, которая не связана с управлением игровым циклом.
+    // РЕШЕНИЕ: Стоит вынести логику в отдельный обработчик/инициализатор уровня.
+    // Создать класс LevelPopulator или LevelInitializer, который будет отвечать за:
+    // - создание AI танков
+    // - поиск свободных позиций
+    // нужно вынести: createAITanks, findFreePosition
     private void createAITanks(Level levelData, TiledMapTileLayer groundLayer) {
         Texture redTankTexture = new Texture("images/tank_red.png");
         List<GridPoint2> occupiedPositions = new ArrayList<>();
 
-        // Собираем все занятые позиции
         occupiedPositions.add(levelData.getPlayerStart());
         occupiedPositions.addAll(levelData.getObstaclePositions());
 
-        // Создаем AI-танки
         for (int i = 0; i < AI_TANK_COUNT; i++) {
             GridPoint2 aiPosition = findFreePosition(occupiedPositions);
             if (aiPosition != null) {
@@ -291,7 +304,6 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
                 collidables.add(aiTank);
                 occupiedPositions.add(aiPosition);
 
-                // Создаем декоратор здоровья для AI-танка
                 HealthBarDecorator aiHealthDecorator = new HealthBarDecorator(aiTank);
                 healthDecorators.add(aiHealthDecorator);
                 renderableObjects.add(aiHealthDecorator);
@@ -328,15 +340,11 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
 
     @Override
     public void render() {
-        // Очистка экрана
         clearScreen();
 
-        // Обработка ввода
         Direction movementDirection = inputController.getMovementDirection();
-        // Обновление состояния игровых объектов
         updateGameState(movementDirection);
 
-        // Отрисовка игры
         renderGame();
     }
 
@@ -346,42 +354,38 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
     }
 
     private void updateGameState(Direction movementDirection) {
-        // Обработка специальных действий (переключение здоровья)
         inputController.handleSpecialActions();
-
-        // Обработка стрельбы игрока
+        // 6. Нарушение DIP
+        // Класс GameDesktopLauncher знает про внутренности InputController (InputController.Action.SHOOT)
+        // GameDesktopLauncher зависит от конкретной реализации InputController (его enum Action).
+        // Если структура InputController изменится, придется менять GameDesktopLauncher.
+        // Это нарушает DIP - высокоуровневый модуль (GameDesktopLauncher) зависит от низкоуровневого (InputController).
+        // РЕШЕНИЕ: Нужно создать интерфейс (например InputHandler), который будет абстрагировать работу с вводом.
         if (inputController.isActionPressed(InputController.Action.SHOOT)) {
             Gdx.app.log("Input", "Shoot button pressed");
             playerTank.shoot();
         }
 
-        // Обновление танка игрока
         if (movementDirection != null) {
             playerTank.tryMove(movementDirection, collidables);
         }
 
-        // Обновление AI-танков
         aiController.update();
 
-        // Обновление всех игровых объектов
         float deltaTime = Gdx.graphics.getDeltaTime();
         for (GameObject gameObject : renderableObjects) {
             gameObject.update(deltaTime);
         }
 
-        // Обновляем пули и проверяем столкновения
         updateBullets();
     }
 
     private void updateBullets() {
-        // Обновляем все пули и проверяем столкновения
         for (int i = bullets.size() - 1; i >= 0; i--) {
             Bullet bullet = bullets.get(i);
             bullet.update(Gdx.graphics.getDeltaTime());
 
-            // Проверяем столкновения пули
             if (checkBulletCollision(bullet)) {
-                // Удаляем пулю при столкновении
                 observableLevel.notifyObjectRemoved(bullet);
             }
         }
@@ -392,20 +396,17 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
             return true;
         }
 
-        // Пуля не сталкивается до тех пор, пока не была отрисована хотя бы один раз
         if (!bullet.hasBeenRendered()) {
             return false;
         }
 
         GridPoint2 bulletPos = bullet.getPosition();
 
-        // Проверяем столкновения со всеми объектами
         for (Collidable collidable : collidables) {
             if (collidable == bullet.getOwner()) {
-                continue; // Пуля не сталкивается со своим владельцем
+                continue;
             }
             if (collidable.getPosition().equals(bulletPos)) {
-                // Столкновение с танком
                 if (collidable instanceof Tank) {
                     Tank tank = (Tank) collidable;
                     tank.takeDamage(bullet.getDamage());
@@ -416,7 +417,6 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
                         observableLevel.notifyObjectRemoved(tank);
                     }
                 }
-                // Пуля уничтожается при любом столкновении
                 bullet.destroy();
                 return true;
             }
@@ -429,7 +429,6 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
         levelRenderer.render();
         batch.begin();
 
-        // Отрисовываем все объекты
         for (GameObject gameObject : renderableObjects) {
             gameObject.render(batch);
         }
@@ -454,19 +453,16 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
 
     @Override
     public void dispose() {
-        // Освобождение ресурсов
         batch.dispose();
         level.dispose();
         if (bulletTexture != null) {
             bulletTexture.dispose();
         }
 
-        // Закрываем Spring контекст
         if (context != null) {
             context.close();
         }
 
-        // Освобождение текстур танков
         for (GameObject obj : renderableObjects) {
             if (obj instanceof HealthBarDecorator) {
                 HealthBarDecorator decorator = (HealthBarDecorator) obj;
@@ -477,8 +473,11 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
         }
     }
 
-    // Реализация методов LevelObserver
 
+    // Нарушение SRP
+    // Реализация методов LevelObserver в этом же классе (часть проблемы)
+    // РЕШЕНИЕ: Создать отдельный класс GameLevelObserver, который будет имплементировать интерфейс LevelObserver.
+    // Его как поле будет хранить GameDesktopLauncher и при необходимости дергать его методы.
     @Override
     public void objectAdded(GameObject object) {
         if (object instanceof Bullet) {
@@ -504,7 +503,6 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
                     ". Total objects now: " + renderableObjects.size());
         } else if (object instanceof Tank) {
             Tank tank = (Tank) object;
-            // Удаляем танк из всех списков
             renderableObjects.removeIf(obj -> {
                 if (obj instanceof HealthBarDecorator) {
                     return ((HealthBarDecorator) obj).getTank() == tank;
@@ -514,7 +512,6 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
             collidables.remove(tank);
             aiTanks.remove(tank);
 
-            // Также удаляем соответствующий HealthBarDecorator
             healthDecorators.removeIf(decorator -> decorator.getTank() == tank);
         }
     }
@@ -523,14 +520,11 @@ public class GameDesktopLauncher implements ApplicationListener, LevelObserver {
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
         config.setWindowedMode(1280, 1024);
 
-        // Парсинг аргументов командной строки
         CommandLineArgs parsedArgs = parseCommandLineArgs(args);
 
-        // Выводим информацию о выбранном режиме в консоль
         System.out.println("Level generation mode: " + 
             (parsedArgs.useRandomGeneration ? "RANDOM" : "FILE: " + parsedArgs.levelFilePath));
 
-        // Создание экземпляра игры с параметрами из командной строки
         GameDesktopLauncher game = new GameDesktopLauncher(
             parsedArgs.useRandomGeneration, 
             parsedArgs.levelFilePath
