@@ -1,112 +1,83 @@
 package ru.mipt.bit.platformer.levelloaders;
 
-import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.files.FileHandle;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.maps.tiled.TiledMap;
 import com.badlogic.gdx.math.GridPoint2;
-import ru.mipt.bit.platformer.Level;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
+import ru.mipt.bit.platformer.controller.LevelController;
+import ru.mipt.bit.platformer.controller.LevelControllerFactory;
+import ru.mipt.bit.platformer.model.Level;
+
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Генератор уровней из файлов
+ * Генератор уровней из файла
  */
+@Component
 public class FileLevelGenerator implements LevelGenerator {
-  private final String filePath;
-
-  /**
-   * Создает генератор уровней из файла
-   * @param filePath путь к файлу уровня
-   */
-  public FileLevelGenerator(String filePath) { this.filePath = filePath; }
-
-  @Override
-  public Level generateLevel() {
-    return loadFromFile(filePath);
-  }
-
-  @Override
-  public String getName() {
-    return String.format("FileLevelGenerator(%s)", filePath);
-  }
-
-  /**
-   * Загружает уровень из текстового файла
-   * Формат: T - дерево, X - игрок, _ - пустота
-   */
-  private Level loadFromFile(String filePath) {
-    try {
-      FileHandle file = Gdx.files.internal(filePath);
-
-      if (!file.exists()) {
-        // Попробуем найти файл в других местах
-        file = Gdx.files.classpath(filePath);
-        if (!file.exists()) {
-          throw new RuntimeException("File not found: " + filePath +
-                                     " (tried as internal and classpath)");
+    
+    private final String filePath;
+    
+    public FileLevelGenerator(@Value("${game.level.file:levels/level1.lvl}") 
+                             String filePath) {
+        this.filePath = filePath;
+    }
+    
+    @Override
+    public LevelController generateLevel(TiledMap tiledMap, Batch batch,
+                                        LevelControllerFactory factory) {
+        try {
+            List<String> lines = readLevelFile();
+            Level levelModel = parseLevelData(lines);
+            return factory.createLevelController(tiledMap, levelModel, batch);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to load level from file: " 
+                + filePath, e);
         }
-      }
-
-      Gdx.app.log("FileLevelGenerator", "Loading level from: " + file.path());
-      String content = file.readString();
-      return parseLevelContent(content);
-    } catch (Exception e) {
-      throw new RuntimeException("Failed to load level from: " + filePath, e);
     }
-  }
-
-  private Level parseLevelContent(String content) {
-    String[] lines = content.split("\\r?\\n");
-    List<GridPoint2> obstacles = new ArrayList<>();
-    GridPoint2 playerStart = null;
-
-    int height = lines.length;
-    int width = 0;
-
-    // Убедимся, что у нас есть хотя бы одна строка
-    if (height == 0) {
-      throw new RuntimeException("Level file is empty");
-    }
-
-    for (int y = height - 1; y >= 0; y--) {
-      String line = lines[height - 1 - y].trim();
-      if (line.isEmpty())
-        continue; // Пропускаем пустые строки
-
-      width = Math.max(width, line.length());
-
-      for (int x = 0; x < line.length(); x++) {
-        char cell = line.charAt(x);
-        switch (cell) {
-        case 'T':
-          obstacles.add(new GridPoint2(x, y));
-          break;
-        case 'X':
-          if (playerStart != null) {
-            throw new RuntimeException(
-                "Multiple player start positions (X) found");
-          }
-          playerStart = new GridPoint2(x, y);
-          break;
-        case '_':
-          // Пустая клетка - ничего не делаем
-          break;
-        default:
-          throw new RuntimeException("Unknown cell character: '" + cell +
-                                     "' at position (" + x + "," + y + ")");
+    
+    private List<String> readLevelFile() throws IOException {
+        List<String> lines = new ArrayList<>();
+        try (BufferedReader reader = new BufferedReader(
+                new FileReader(filePath))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                lines.add(line);
+            }
         }
-      }
+        return lines;
     }
-
-    if (playerStart == null) {
-      throw new RuntimeException(
-          "No player start position (X) found in level file");
+    
+    private Level parseLevelData(List<String> lines) {
+        if (lines.isEmpty()) {
+            throw new IllegalArgumentException("Level file is empty");
+        }
+        
+        String[] dimensions = lines.get(0).split(",");
+        int width = Integer.parseInt(dimensions[0].trim());
+        int height = Integer.parseInt(dimensions[1].trim());
+        
+        Level levelModel = new Level(width, height, 
+                                              new GridPoint2(1, 1));
+        
+        for (int i = 1; i < lines.size(); i++) {
+            String[] coords = lines.get(i).split(",");
+            int x = Integer.parseInt(coords[0].trim());
+            int y = Integer.parseInt(coords[1].trim());
+            levelModel.addObstacle(new GridPoint2(x, y));
+        }
+        
+        return levelModel;
     }
-
-    Gdx.app.log("FileLevelGenerator", "Loaded level: " + width + "x" + height +
-                                          ", player at " + playerStart +
-                                          ", obstacles: " + obstacles.size());
-
-    return new Level(playerStart, obstacles, width, height);
-  }
+    
+    @Override
+    public String getName() {
+        return "FileLevelGenerator";
+    }
 }

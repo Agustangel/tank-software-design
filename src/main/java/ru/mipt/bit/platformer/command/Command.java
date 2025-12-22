@@ -1,8 +1,7 @@
-package ru.mipt.bit.platformer;
+package ru.mipt.bit.platformer.command;
 
-/**
- * Интерфейс команды в соответствии с шаблоном "Команда"
- */
+import ru.mipt.bit.platformer.api.GameWorld;
+
 public interface Command {
-    void execute();
+    void execute(GameWorld gameWorld);
 }

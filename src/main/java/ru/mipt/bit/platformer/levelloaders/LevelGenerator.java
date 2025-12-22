@@ -1,19 +1,20 @@
 package ru.mipt.bit.platformer.levelloaders;
 
-import ru.mipt.bit.platformer.Level;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.maps.tiled.TiledMap;
+
+import ru.mipt.bit.platformer.controller.LevelController;
+import ru.mipt.bit.platformer.controller.LevelControllerFactory;
+import ru.mipt.bit.platformer.model.Level;
 
 /**
- * Интерфейс для генераторов уровней.
+ * Интерфейс для генерирования уровней
+ * SRP: различные реализации отвечают за свой способ генерирования
  */
 public interface LevelGenerator {
 
-    /**
-     * Генерирует данные уровня 
-     */
-    Level generateLevel();
-
-    /**
-     * Возвращает название генератора для отладки и логирования
-     */
+    LevelController generateLevel(TiledMap tiledMap, Batch batch,
+                                  LevelControllerFactory factory);
+    
     String getName();
 }

@@ -1,22 +1,20 @@
-package ru.mipt.bit.platformer;
+package ru.mipt.bit.platformer.command;
 
-import java.util.List;
+import ru.mipt.bit.platformer.api.GameWorld;
+import ru.mipt.bit.platformer.controller.GameObjectController;
 
 /**
- * Конкретная команда для переключения отображения полосок здоровья
+ * Команда для включения/выключения отображения здоровья
  */
-public class ToggleHealthDisplayCommand implements Command {
-    private final List<HealthBarDecorator> healthDecorators;
-
-    public ToggleHealthDisplayCommand(List<HealthBarDecorator> healthDecorators) {
-        this.healthDecorators = healthDecorators;
+public class ToggleHealthBarCommand implements Command {
+    private final GameObjectController controller;
+    
+    public ToggleHealthBarCommand(GameObjectController controller) {
+        this.controller = controller;
     }
-
+    
     @Override
-    public void execute() {
-        // Переключаем видимость здоровья для всех декораторов
-        for (HealthBarDecorator decorator : healthDecorators) {
-            decorator.setVisible(!decorator.isVisible());
-        }
+    public void execute(GameWorld gameWorld) {
+        controller.toggleHealthBar();
     }
 }
